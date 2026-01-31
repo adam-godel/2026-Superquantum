@@ -21,7 +21,7 @@ def _tokenize(gates: GateSeq) -> List[str]:
     
     return list(s)
 
-def _apply_gate(qc: QuantumCircuit, g: str, i: int, *, dagger: bool) -> None:
+def _apply_gate(qc: QuantumCircuit, g: str, i: int, dagger: bool) -> None:
     g_up = g.upper()
     if g_up == "H":
         qc.h(i)
@@ -49,7 +49,7 @@ def _apply_gate(qc: QuantumCircuit, g: str, i: int, *, dagger: bool) -> None:
         return
 
 
-def gates_to_qiskit_circuit(gates: GateSeq, i: int, *, reverse: bool = False) -> QuantumCircuit:
+def gates_to_qiskit_circuit(gates: GateSeq, i: int, reverse: bool) -> QuantumCircuit:
     toks = _tokenize(gates)
 
     ordered = toks if reverse else list(reversed(toks))
@@ -60,36 +60,12 @@ def gates_to_qiskit_circuit(gates: GateSeq, i: int, *, reverse: bool = False) ->
         _apply_gate(qc, g, i, dagger=dagger)
     return qc
 
-
-def gates_to_qiskit_lines(gates: GateSeq, i: int, *, reverse: bool = False) -> List[str]:
-    toks = _tokenize(gates)
-    ordered = toks if reverse else list(reversed(toks))
-    dagger = reverse
-
-    lines: List[str] = []
-
-    def Rzhalf():
-        lines.append(f"qc.tdg({i})" if dagger else f"qc.t({i})")
-
-    for g in ordered:
-        gu = g.upper()
-        if gu == "H":
-            lines.append(f"qc.h({i})")
-        elif g == "t":
-            lines.append(f"qc.t({i})" if dagger else f"qc.tdg({i})")
-        elif gu == "T":
-            Rzhalf()
-        elif gu == "S":
-            Rzhalf(); Rzhalf()
-        elif gu == "X":
-            lines.append(f"qc.h({i})")
-            Rzhalf(); Rzhalf(); Rzhalf(); Rzhalf()
-            lines.append(f"qc.h({i})")
-
-    return lines
-
-def Rz(theta: float, epsilon: float):
+def Rz(i: int, theta: float, epsilon: float) -> QuantumCircuit:
     mpmath.mp.dps = 128
     theta = mpmath.mpf(str(abs(theta)))
-    epsilon = mpmath.mpf(str(epsilon))  
-    return gridsynth_gates(theta=theta, epsilon=epsilon)
+    epsilon = mpmath.mpf(str(epsilon))
+
+    gates = gridsynth_gates(theta=theta, epsilon=epsilon)
+
+    reverse = theta < 0
+    return gates_to_qiskit_circuit(gates, i, reverse)
