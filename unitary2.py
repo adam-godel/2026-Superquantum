@@ -11,5 +11,3 @@ qc = gates_to_qiskit_circuit(input_seq, i=1, reverse=False)
 qasm3_str = dumps3(qc)
 with open("unitary2.qasm", 'w') as file:
     file.write(qasm3_str)
-
-print("\nQASM3 file saved as unitary2.qasm")

@@ -8,7 +8,6 @@ from pygridsynth.gridsynth import gridsynth_gates
 
 GateSeq = Union[str, Sequence[str]]
 
-
 def _tokenize(gates: GateSeq) -> List[str]:
     if isinstance(gates, str):
         s = gates.strip().replace(" ", "")
@@ -22,10 +21,8 @@ def _tokenize(gates: GateSeq) -> List[str]:
     
     return list(s)
 
-
 def _apply_gate(qc: QuantumCircuit, g: str, i: int, *, dagger: bool) -> None:
     g_up = g.upper()
-
     if g_up == "H":
         qc.h(i)
         return
@@ -94,9 +91,5 @@ def gates_to_qiskit_lines(gates: GateSeq, i: int, *, reverse: bool = False) -> L
 def Rz(theta: float, epsilon: float):
     mpmath.mp.dps = 128
     theta = mpmath.mpf(str(abs(theta)))
-    epsilon = mpmath.mpf(str(epsilon))
-    
-    gates = gridsynth_gates(theta=theta, epsilon=epsilon)
-    print(gates)
-
-    return gates
+    epsilon = mpmath.mpf(str(epsilon))  
+    return gridsynth_gates(theta=theta, epsilon=epsilon)
