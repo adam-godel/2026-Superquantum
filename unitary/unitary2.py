@@ -4,16 +4,12 @@ from utils import Ry
 import math
 
 theta = math.pi / 7
-epsilon = 1e-3
+epsilon = 1e-4
 
 qc = QuantumCircuit(2)
-
 qc.append(Ry(theta/2, epsilon).to_gate(), [1])
-
 qc.cx(0, 1)
-
 qc.append(Ry(-theta/2, epsilon).to_gate(), [1])
-
 qc.cx(0, 1)
 
 qasm3_str = dumps3(qc)
