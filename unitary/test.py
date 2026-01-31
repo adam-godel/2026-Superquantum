@@ -6,6 +6,7 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Operator
 from qiskit.qasm3 import loads
+from utils import count_t_gates as count_t_gates_from_string
 
 # ---- 1) Define / load your expected matrices here ----
 # Example placeholder dictionary. Replace with your real matrices.
@@ -25,16 +26,17 @@ expected = {
     ])
 }
 
-def load_qasm_circuit(path: str) -> QuantumCircuit:
+def load_qasm_circuit(path: str) -> tuple[QuantumCircuit, str]:
     """
     Load an OpenQASM 3 file into a Qiskit QuantumCircuit.
+    Returns both the circuit and the original QASM source.
     """
 
     with open(path, "r", encoding="utf-8") as f:
         qasm3_src = f.read()
 
     qc = loads(qasm3_src)
-    return qc
+    return qc, qasm3_src
 
 
 def circuit_unitary(qc: QuantumCircuit) -> np.ndarray:
@@ -93,6 +95,15 @@ def parse_unitary_id_from_filename(path: str) -> int:
         raise ValueError(f"Could not infer unitary id from filename: {base}. Use --id.")
     return int(m.group(1))
 
+def count_t_gates(qc: QuantumCircuit) -> int:
+    """
+    Counts 't' and 'tdg' (inverse T) gates in a QuantumCircuit.
+    """
+    ops = qc.count_ops()
+
+    t_count = ops.get("t", 0) + ops.get("tdg", 0)
+    
+    return t_count
 
 def main():
     parser = argparse.ArgumentParser()
@@ -172,6 +183,10 @@ def main():
     else:
         err = np.max(np.abs(U_qasm - U_expected))
         print(f"Max |Δ| (no phase alignment): {err:.3e}")
+
+    # print t gate count
+    t_count = count_t_gates(qc)
+    print(f"T-gate count: {t_count}")
 
     # Final result
     if phase_ok:
