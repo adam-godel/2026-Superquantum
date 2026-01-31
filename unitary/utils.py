@@ -21,24 +21,21 @@ def _apply_gate(qc: QuantumCircuit, g: str, dagger: bool) -> None:
         qc.h(0)
         return
 
-    def Rzhalf():
-        qc.tdg(0) if dagger else qc.t(0)
-
     if g == "t":
         qc.tdg(0) if not dagger else qc.t(0)
         return
     
     if g_up == "T":
-        Rzhalf()
+        qc.tdg(0) if dagger else qc.t(0)
         return
 
     if g_up == "S":
-        Rzhalf(); Rzhalf()
+        qc.s(0)
         return
 
     if g_up == "X":
         qc.h(0)
-        Rzhalf(); Rzhalf(); Rzhalf(); Rzhalf()
+        qc.s(0); qc.s(0)
         qc.h(0)
         return
 
@@ -68,8 +65,8 @@ def Rz(theta: float, epsilon: float) -> QuantumCircuit:
 def Ry(theta: float, epsilon: float) -> QuantumCircuit:
     qc = QuantumCircuit(1)
 
-    qc.t(0); qc.t(0)
+    qc.s(0)
     qc.append(Rz(theta, epsilon).to_gate(), [0])
-    qc.tdg(0); qc.tdg(0)
+    qc.sdg(0)
 
     return qc
