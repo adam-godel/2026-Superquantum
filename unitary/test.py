@@ -23,6 +23,21 @@ expected = {
         [0, np.cos(np.pi / 14), 0, -np.sin(np.pi / 14)],
         [0, 0, 1, 0],
         [0, np.sin(np.pi / 14), 0, np.cos(np.pi / 14)]
+    ]),
+    3: np.array([
+        [np.exp(-1j*np.pi/7), 0, 0, 0],
+        [0, np.exp(1j*np.pi/7), 0, 0],
+        [0, 0, np.exp(1j*np.pi/7), 0],
+        [0, 0, 0, np.exp(-1j*np.pi/7)]
+    ]),
+    4: np.array([
+        [1, 0, 0, 0],
+        [0, np.cos(2*np.pi/7), 1j*np.sin(2*np.pi/7), 0],
+        [0, 1j*np.sin(2*np.pi/7), np.cos(2*np.pi/7), 0],
+        [0, 0, 0, 1]
+    ]),
+    5: np.array([
+        
     ])
 }
 

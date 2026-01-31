@@ -1,6 +1,6 @@
 from qiskit import QuantumCircuit
 from qiskit.qasm3 import dumps as dumps3
-from utils import Rz, Ry
+from utils import Rz
 import math
 
 theta = math.pi / 7
