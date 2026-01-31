@@ -55,15 +55,16 @@ def distance_global_phase(U: np.ndarray, V: np.ndarray, atol=1e-8) -> np.ndarray
     best_phase = 1.0 + 0.0j
     min_dist = float('inf')
 
-    for phase in np.arange():
-        dist = np.linalg.norm(U - (phase * V))
+    for phase in np.arange(-2 * np.pi, 2 * np.pi, .001):
+        phase_factor = np.exp(1j * phase)
+        dist = np.linalg.norm((phase_factor * U) -  V)
         
         if dist < min_dist:
             min_dist = dist
-            best_phase = phase
+            best_phase = phase_factor
 
     print(f"Best phase found: {best_phase:.4f} (Distance: {min_dist:.2e})")
-    aligned_matrix = best_phase * V
+    aligned_matrix = best_phase * U
     
     return aligned_matrix
 
