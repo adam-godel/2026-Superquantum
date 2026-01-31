@@ -6,7 +6,10 @@ import numpy as np
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Operator
 from qiskit.qasm3 import loads
-from utils import count_t_gates as count_t_gates_from_string
+
+def count_t_gates_from_string(gates: str) -> int:
+    """Count the number of T gates (both 't' and 'T') in a gate string."""
+    return gates.count('t') + gates.count('T')
 
 # ---- 1) Define / load your expected matrices here ----
 # Example placeholder dictionary. Replace with your real matrices.
@@ -138,7 +141,7 @@ def main():
     U_expected = np.asarray(expected[unitary_id], dtype=complex)
 
     # ---- 2) Load QASM -> circuit ----
-    qc = load_qasm_circuit(args.qasm_file)
+    qc, qasm_src = load_qasm_circuit(args.qasm_file)
 
     # Guardrail: Operator needs unitary-only circuit (no measurements/resets)
     if qc.num_clbits > 0:
@@ -200,7 +203,7 @@ def main():
         print(f"Max |Δ| (no phase alignment): {err:.3e}")
 
     # print t gate count
-    t_count = count_t_gates(qc)
+    t_count = count_t_gates_from_string(qasm_src)
     print(f"T-gate count: {t_count}")
 
     # Final result
