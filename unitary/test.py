@@ -7,10 +7,6 @@ from qiskit import QuantumCircuit
 from qiskit.quantum_info import Operator
 from qiskit.qasm3 import loads
 
-def count_t_gates_from_string(gates: str) -> int:
-    """Count the number of T gates (both 't' and 'T') in a gate string."""
-    return gates.count('t') + gates.count('T')
-
 # ---- 1) Define / load your expected matrices here ----
 # Example placeholder dictionary. Replace with your real matrices.
 # Each entry must be a (2**n x 2**n) complex numpy array.
@@ -115,12 +111,16 @@ def parse_unitary_id_from_filename(path: str) -> int:
 
 def count_t_gates(qc: QuantumCircuit) -> int:
     """
-    Counts 't' and 'tdg' (inverse T) gates in a QuantumCircuit.
+    Decomposes custom gates and counts all 't' and 'tdg' gates accurately.
     """
-    ops = qc.count_ops()
-
-    t_count = ops.get("t", 0) + ops.get("tdg", 0)
+    # Use decompose to unroll custom 'gate' definitions into standard gates
+    decomposed_qc = qc.decompose()
     
+    # In case of nested definitions, you might need multiple passes or 
+    # use the transpiler to unroll to a specific basis
+    ops = decomposed_qc.count_ops()
+    
+    t_count = ops.get("t", 0) + ops.get("tdg", 0)
     return t_count
 
 def main():
@@ -203,7 +203,7 @@ def main():
         print(f"Max |Δ| (no phase alignment): {err:.3e}")
 
     # print t gate count
-    t_count = count_t_gates_from_string(qasm_src)
+    t_count = count_t_gates(qc)
     print(f"T-gate count: {t_count}")
 
     # Final result
