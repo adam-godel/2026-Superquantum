@@ -54,6 +54,16 @@ def run_optimization(unitary_id, theta):
             qc.append(Rz(-2*theta, eps).to_gate(), [1])
             qc.cx(0, 1)
             qc.h(0); qc.h(1)
+
+        elif unitary_id == 6:
+            qc.h(0); qc.h(1)
+            qc.cx(0, 1)
+            qc.append(Rz(-2*theta, eps).to_gate(), [1])
+            qc.cx(0, 1)
+            qc.h(0); qc.h(1)
+
+            qc.append(Rz(-theta, eps).to_gate(), [0])
+            qc.append(Rz(-theta, eps).to_gate(), [1])
         
         #etc for others
         
@@ -78,4 +88,4 @@ def run_optimization(unitary_id, theta):
 
 if __name__ == "__main__":
     # change to run w diff unitarys
-    run_optimization(4, math.pi/7)
+    run_optimization(6, math.pi/7)
