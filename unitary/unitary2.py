@@ -4,7 +4,7 @@ from utils import Ry
 import math
 
 theta = math.pi / 7
-epsilon = 1e-4
+epsilon = 1.0e-01
 
 qc = QuantumCircuit(2)
 qc.append(Ry(theta/2, epsilon).to_gate(), [1])
