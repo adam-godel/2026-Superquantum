@@ -133,18 +133,6 @@ def main():
     print("Converted matrix (Qiskit -> expected ordering, rounded to 6 decimals):")
     print(np.round(U_qasm_converted, 6))
     print()
-    
-    # Show what changes were made
-    print("Changes made during conversion:")
-    diff_matrix = U_qasm_converted - U_qasm
-    max_change = np.max(np.abs(diff_matrix))
-    if max_change > 1e-10:
-        print(f"Maximum absolute change: {max_change:.3e}")
-        print("Difference matrix (converted - original, rounded to 6 decimals):")
-        print(np.round(diff_matrix, 6))
-    else:
-        print("No significant changes (matrices are essentially identical)")
-    print()
 
     # ---- 4) Sanity: dimensions match ----
     if U_qasm_converted.shape != U_expected.shape:
