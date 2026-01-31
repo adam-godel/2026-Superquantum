@@ -107,9 +107,6 @@ def main():
 
     # ---- 2) Load QASM -> circuit ----
     qc = load_qasm_circuit(args.qasm_file)
-    
-    # We'll convert the QASM matrix to match expected ordering, not the other way around
-    # U_expected_converted = little_endian_to_big_endian(U_expected, qc.num_qubits)
 
     # Guardrail: Operator needs unitary-only circuit (no measurements/resets)
     if qc.num_clbits > 0:
