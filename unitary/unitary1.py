@@ -8,8 +8,6 @@ qc.cx(0, 1)
 qc.tdg(1)
 qc.tdg(1)
 
-print(qc.draw())
-
 qasm3_str = dumps3(qc)
-with open("unitary1.qasm", 'w') as file:
+with open("../qasm/unitary1.qasm", 'w') as file:
     file.write(qasm3_str)

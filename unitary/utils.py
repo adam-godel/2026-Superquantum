@@ -15,17 +15,17 @@ def _tokenize(gates: str) -> List[str]:
     
     return list(s)
 
-def _apply_gate(qc: QuantumCircuit, g: str, i: int, dagger: bool) -> None:
+def _apply_gate(qc: QuantumCircuit, g: str, dagger: bool) -> None:
     g_up = g.upper()
     if g_up == "H":
-        qc.h(i)
+        qc.h(0)
         return
 
     def Rzhalf():
-        qc.tdg(i) if dagger else qc.t(i)
+        qc.tdg(0) if dagger else qc.t(0)
 
     if g == "t":
-        qc.tdg(i) if not dagger else qc.t(i)
+        qc.tdg(0) if not dagger else qc.t(0)
         return
     
     if g_up == "T":
@@ -37,9 +37,9 @@ def _apply_gate(qc: QuantumCircuit, g: str, i: int, dagger: bool) -> None:
         return
 
     if g_up == "X":
-        qc.h(i)
+        qc.h(0)
         Rzhalf(); Rzhalf(); Rzhalf(); Rzhalf()
-        qc.h(i)
+        qc.h(0)
         return
 
 
@@ -49,17 +49,18 @@ def gates_to_qiskit_circuit(gates: str, i: int, reverse: bool) -> QuantumCircuit
     ordered = toks if reverse else list(reversed(toks))
     dagger = reverse
 
-    qc = QuantumCircuit(i + 1)
+    qc = QuantumCircuit(1)
     for g in ordered:
-        _apply_gate(qc, g, i, dagger=dagger)
+        _apply_gate(qc, g, dagger)
     return qc
 
-def Rz(i: int, theta: float, epsilon: float) -> QuantumCircuit:
+def Rz(theta: float, epsilon: float) -> QuantumCircuit:
+    reverse = theta < 0
+    
     mpmath.mp.dps = 128
     theta = mpmath.mpf(str(abs(theta)))
     epsilon = mpmath.mpf(str(epsilon))
 
     gates = gridsynth_gates(theta=theta, epsilon=epsilon)
 
-    reverse = theta < 0
-    return gates_to_qiskit_circuit(gates, i, reverse)
+    return gates_to_qiskit_circuit(gates, reverse)
