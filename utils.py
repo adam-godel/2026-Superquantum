@@ -10,11 +10,9 @@ GateSeq = Union[str, Sequence[str]]
 
 def _tokenize(gates: GateSeq) -> List[str]:
     if isinstance(gates, str):
-        s = gates.strip().replace(" ", "")  # Remove all spaces
-        # Filter to only keep HTSX characters
+        s = gates.strip().replace(" ", "")
         s = "".join(c for c in s.upper() if c in "HTSX")
         return list(s)
-    # For sequences, filter and clean each element
     return [str(g).strip().upper() for g in gates if str(g).strip().upper() in "HTSX"]
 
 
@@ -25,7 +23,6 @@ def _apply_gate(qc: QuantumCircuit, g: str, i: int, *, dagger: bool) -> None:
         qc.h(i)
         return
 
-    # pick T vs Tdg primitive based on dagger flag
     def Rzhalf():
         qc.tdg(i) if dagger else qc.t(i)
 
@@ -34,12 +31,10 @@ def _apply_gate(qc: QuantumCircuit, g: str, i: int, *, dagger: bool) -> None:
         return
 
     if g_up == "S":
-        # S = T^2 ; S† = (T†)^2
         Rzhalf(); Rzhalf()
         return
 
     if g_up == "X":
-        # X = H Z H, and Z = T^4 ; X† = X
         qc.h(i)
         Rzhalf(); Rzhalf(); Rzhalf(); Rzhalf()
         qc.h(i)
@@ -49,7 +44,6 @@ def _apply_gate(qc: QuantumCircuit, g: str, i: int, *, dagger: bool) -> None:
 def gates_to_qiskit_circuit(gates: GateSeq, i: int, *, reverse: bool = False) -> QuantumCircuit:
     toks = _tokenize(gates)
 
-    # default is RIGHT -> LEFT
     ordered = toks if reverse else list(reversed(toks))
     dagger = reverse
 
