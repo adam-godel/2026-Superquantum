@@ -67,7 +67,6 @@ def distance_global_phase(actual: np.ndarray, expected: np.ndarray) -> np.ndarra
     
     return aligned_matrix
 
-
 def parse_unitary_id_from_filename(path: str) -> int:
     base = os.path.basename(path)
     m = re.search(r"(\d+)", base)
@@ -120,7 +119,7 @@ def main():
             f"QASM qubits: {qc.num_qubits} -> expected dimension {2**qc.num_qubits}"
         )
 
-    aligned = distance_global_phase(U_qasm, U_expected)
+    aligned = distance_global_phase(U_expected, U_qasm, atol=args.atol)
 
     print("Best-aligned actual matrix (phase * actual, rounded to 6 decimals):")
     print(np.round(aligned, 6))
