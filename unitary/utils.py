@@ -30,7 +30,7 @@ def _apply_gate(qc: QuantumCircuit, g: str, dagger: bool) -> None:
         return
 
     if g_up == "S":
-        qc.s(0)
+        qc.sdg(0) if dagger else qc.s(0)
         return
 
     if g_up == "X":

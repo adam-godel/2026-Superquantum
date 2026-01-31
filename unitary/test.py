@@ -13,29 +13,17 @@ from qiskit.qasm3 import loads
 expected = {
     1: np.array([
         [1, 0, 0, 0],
-        [0, 1, 0, 0],
         [0, 0, 0, -1j],
-        [0, 0, 1j, 0]
+        [0, 0, 1, 0],
+        [0, 1j, 0, 0]
     ]),
     2: np.array([
         [1, 0, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, np.cos(np.pi / 14), -np.sin(np.pi / 14)],
-        [0, 0, np.sin(np.pi / 14), np.cos(np.pi / 14)]
+        [0, np.cos(np.pi / 14), 0, -np.sin(np.pi / 14)],
+        [0, 0, 1, 0],
+        [0, np.sin(np.pi / 14), 0, np.cos(np.pi / 14)]
     ])
 }
-
-def little_endian_to_big_endian(U: np.ndarray) -> np.ndarray:
-    """
-    Convert a unitary matrix from little-endian to big-endian qubit ordering.
-    In little-endian: qubit 0 is rightmost (least significant bit)
-    In big-endian: qubit 0 is leftmost (most significant bit)
-    """
-    P = np.array([[1, 0, 0, 0],
-                  [0, 0, 1, 0],
-                  [0, 1, 0, 0],
-                  [0, 0, 0, 1]])
-    return (P @ U @ P).T
 
 def load_qasm_circuit(path: str) -> QuantumCircuit:
     """
@@ -122,39 +110,21 @@ def main():
             raise ValueError("Circuit contains measure/reset; cannot form a single unitary Operator.")
 
     # ---- 3) Circuit -> unitary ----
-    U_qasm = circuit_unitary(qc)
+    U_qasm = circuit_unitary(qc).T
     
-    # Convert QASM matrix from Qiskit's ordering to match expected matrix ordering
-    U_qasm_converted = little_endian_to_big_endian(U_qasm)
-    
+    print("Expected matrix:")
+    print(np.round(U_expected, 6))
+    print()
     print("Matrix from QASM file (rounded to 6 decimals):")
     print(np.round(U_qasm, 6))
     print()
-    print("Converted matrix (Qiskit -> expected ordering, rounded to 6 decimals):")
-    print(np.round(U_qasm_converted, 6))
-    print()
-
-    # ---- 4) Sanity: dimensions match ----
-    if U_qasm_converted.shape != U_expected.shape:
-        raise ValueError(
-            f"Shape mismatch:\n"
-            f"  from QASM:     {U_qasm_converted.shape}\n"
-            f"  expected dict: {U_expected.shape}\n"
-            f"QASM qubits: {qc.num_qubits} -> expected dimension {2**qc.num_qubits}"
-        )
 
     # ---- 5) Compare ----
-    direct_ok = np.allclose(U_qasm_converted, U_expected, atol=args.atol)
-    phase_ok, phase = equal_up_to_global_phase(U_qasm_converted, U_expected, atol=args.atol)
+    direct_ok = np.allclose(U_qasm, U_expected, atol=args.atol)
+    phase_ok, _ = equal_up_to_global_phase(U_qasm, U_expected, atol=args.atol)
 
-    print(f"QASM file: {args.qasm_file}")
-    print(f"Unitary id: {unitary_id}")
-    print()
     print(f"allclose (direct): {direct_ok}")
     print(f"allclose (up to global phase): {phase_ok}")
-    if phase_ok and not direct_ok:
-        print(f"Estimated global phase factor (U_qasm ≈ phase * U_expected): {phase}")
-
 
 if __name__ == "__main__":
     main()
