@@ -59,7 +59,13 @@ expected = {
         -0.3622775887 - 0.453613136j,
         0.2614190429 + 0.0445330969j,
         0.3276449279 - 0.1101628411j,
-    ], dtype=complex))
+    ], dtype=complex)),
+    8: np.block([
+        [0.5, 0.5, 0.5, 0.5],
+        [0.5, 0.5j, -0.5, -0.5j],
+        [0.5, -0.5, 0.5, -0.5],
+        [0.5, -0.5j, -0.5, 0.5j]
+    ])
 }
 
 def load_qasm_circuit(path: str) -> tuple[QuantumCircuit, str]:
