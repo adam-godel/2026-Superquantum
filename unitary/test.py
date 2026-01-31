@@ -164,8 +164,6 @@ def main():
     else:
         err = np.max(np.abs(U_qasm_converted - U_expected))
         print(f"Max |Δ| (no phase alignment): {err:.3e}")
-    
-    print(f"\nUsed converted matrix (Qiskit -> expected ordering): True")
 
 
 if __name__ == "__main__":
