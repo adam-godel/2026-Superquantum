@@ -4,6 +4,8 @@ import re
 
 from qiskit import QuantumCircuit
 
+import mpmath
+from pygridsynth.gridsynth import gridsynth_gates
 
 GateSeq = Union[str, Sequence[str]]
 
@@ -77,3 +79,13 @@ def gates_to_qiskit_lines(gates: GateSeq, i: int, *, reverse: bool = False) -> L
             lines.append(f"qc.h({i})")
 
     return lines
+
+def Rz(theta: float, epsilon: float):
+    mpmath.mp.dps = 128
+    theta = mpmath.mpf(str(abs(theta)))
+    epsilon = mpmath.mpf(str(epsilon))
+    
+    gates = gridsynth_gates(theta=theta, epsilon=epsilon)
+    print(gates)
+
+    return gates
