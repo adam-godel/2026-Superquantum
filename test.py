@@ -88,6 +88,12 @@ def read_qasm(path: str) -> List[ParsedGate]:
 
     return gates
 
+def count_t_gates(gates: List[ParsedGate]) -> int:
+    count = 0
+    for gate in gates:
+        if gate.name in ["T", "TDG"]:
+            count += 1
+    return count
 
 def build_circuit_from_parsed(gates: List[ParsedGate], reverse: bool = False) -> QuantumCircuit:
     if not gates:
@@ -193,6 +199,7 @@ def main() -> None:
 
     parsed = read_qasm(args.qasm_file)
     qc = build_circuit_from_parsed(parsed, reverse=args.reverse)
+    t_count = count_t_gates(parsed)
 
     if args.print_circuit:
         print(qc.draw())
@@ -209,6 +216,7 @@ def main() -> None:
     print(f"File: {args.qasm_file}")
     print(f"Qubits: {qc.num_qubits}")
     print(f"Gates parsed: {len(parsed)}")
+    print(f"T-gates (T + TDG): {t_count}")
     print(f"Order: {'LEFT->RIGHT' if args.reverse else 'RIGHT->LEFT'}")
     print(msg)
 
