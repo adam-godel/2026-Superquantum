@@ -27,7 +27,7 @@ expected = {
     ]),
     3: scipy.linalg.expm(1j*np.pi/7*(np.kron(Z,Z))),
     4: scipy.linalg.expm(1j*np.pi/7*(np.kron(X,X)+np.kron(Y,Y))),
-    5: scipy.linalg.expm(1j*np.pi/7*(np.kron(X,X)+np.kron(Y,Y)+np.kron(Z,Z))),
+    5: scipy.linalg.expm(1j*np.pi/4*(np.kron(X,X)+np.kron(Y,Y)+np.kron(Z,Z))),
     6: scipy.linalg.expm(1j*np.pi/7*(np.kron(X,X)+np.kron(Z,np.eye(2))+np.kron(np.eye(2),Z)))
 }
 
