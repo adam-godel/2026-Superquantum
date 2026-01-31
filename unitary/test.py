@@ -145,13 +145,13 @@ def main():
             f"QASM qubits: {qc.num_qubits} -> expected dimension {2**qc.num_qubits}"
         )
 
-    aligned = distance_global_phase(U_expected, U_qasm)
+    aligned = distance_global_phase(U_qasm, U_expected)
 
     print("Best-aligned actual matrix (phase * actual, rounded to 6 decimals):")
     print(np.round(aligned, 6))
     print()
 
-    err = np.linalg.norm(U_expected - aligned)
+    err = np.linalg.norm(aligned - U_expected)
     print(f"Min |Δ|: {err:.3e}")
 
     # print t gate count
