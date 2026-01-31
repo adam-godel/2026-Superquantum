@@ -127,5 +127,48 @@ def main():
     print(np.round(U_qasm, 6))
     print()
 
+    # ---- 4) Sanity: dimensions match ----
+    if U_qasm.shape != U_expected.shape:
+        raise ValueError(
+            f"Shape mismatch:\n"
+            f"  from QASM:     {U_qasm.shape}\n"
+            f"  expected dict: {U_expected.shape}\n"
+            f"QASM qubits: {qc.num_qubits} -> expected dimension {2**qc.num_qubits}"
+        )
+
+    # ---- 5) Compare matrices ----
+    # First try direct comparison
+    direct_ok = np.allclose(U_qasm, U_expected, atol=args.atol)
+    
+    # Then try comparison up to global phase
+    phase_ok, phase = equal_up_to_global_phase(U_qasm, U_expected, atol=args.atol)
+
+    # Print results
+    print(f"QASM file: {args.qasm_file}")
+    print(f"Inferred id: {unitary_id}")
+    print(f"Qubits: {qc.num_qubits}")
+    print(f"Matrix shape: {U_qasm.shape}")
+    print()
+    print(f"allclose (direct): {direct_ok}")
+    print(f"allclose (up to global phase): {phase_ok}")
+    if phase_ok and not direct_ok:
+        print(f"Estimated global phase factor: {phase}")
+
+    # Show max error
+    if phase_ok:
+        err = np.max(np.abs(U_qasm - phase * U_expected))
+        print(f"Max |Δ| after phase alignment: {err:.3e}")
+    else:
+        err = np.max(np.abs(U_qasm - U_expected))
+        print(f"Max |Δ| (no phase alignment): {err:.3e}")
+
+    # Final result
+    if phase_ok:
+        print(f"\n✓ SUCCESS: Matrices match up to global phase")
+    elif direct_ok:
+        print(f"\n✓ SUCCESS: Matrices match exactly")
+    else:
+        print(f"\n✗ FAILURE: Matrices do not match")
+
 if __name__ == "__main__":
     main()
