@@ -119,12 +119,5 @@ def main():
     print(np.round(U_qasm, 6))
     print()
 
-    # ---- 5) Compare ----
-    direct_ok = np.allclose(U_qasm, U_expected, atol=args.atol)
-    phase_ok, _ = equal_up_to_global_phase(U_qasm, U_expected, atol=args.atol)
-
-    print(f"allclose (direct): {direct_ok}")
-    print(f"allclose (up to global phase): {phase_ok}")
-
 if __name__ == "__main__":
     main()
