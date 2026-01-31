@@ -123,9 +123,6 @@ def main():
     print("Expected matrix:")
     print(np.round(U_expected, 6))
     print()
-    print("Matrix from QASM file (rounded to 6 decimals):")
-    print(np.round(U_qasm, 6))
-    print()
 
     if U_qasm.shape != U_expected.shape:
         raise ValueError(
@@ -143,19 +140,6 @@ def main():
     print(np.round(aligned_expected, 6))
     print()
 
-    # Print results
-    print(f"QASM file: {args.qasm_file}")
-    print(f"Inferred id: {unitary_id}")
-    print(f"Qubits: {qc.num_qubits}")
-    print(f"Matrix shape: {U_qasm.shape}")
-    print()
-    print(f"allclose (direct): {direct_ok}")
-    print(f"allclose (up to global phase): {phase_ok}")
-    if phase_ok and not direct_ok:
-        print(f"Estimated global phase factor: {phase}")
-    elif not direct_ok:
-        print(f"Best phase factor found: {phase} (but matrices still don't match within tolerance)")
-
     # Show max error
     if phase_ok:
         err = np.max(np.abs(U_qasm - aligned_expected))
@@ -167,14 +151,6 @@ def main():
     # print t gate count
     t_count = count_t_gates(qc)
     print(f"T-gate count: {t_count}")
-
-    # Final result
-    if phase_ok:
-        print(f"\n✓ SUCCESS: Matrices match up to global phase")
-    elif direct_ok:
-        print(f"\n✓ SUCCESS: Matrices match exactly")
-    else:
-        print(f"\n✗ FAILURE: Matrices do not match")
 
 if __name__ == "__main__":
     main()
