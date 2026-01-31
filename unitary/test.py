@@ -119,7 +119,7 @@ def main():
             f"QASM qubits: {qc.num_qubits} -> expected dimension {2**qc.num_qubits}"
         )
 
-    aligned = distance_global_phase(U_expected, U_qasm, atol=args.atol)
+    aligned = distance_global_phase(U_expected, U_qasm)
 
     print("Best-aligned actual matrix (phase * actual, rounded to 6 decimals):")
     print(np.round(aligned, 6))
