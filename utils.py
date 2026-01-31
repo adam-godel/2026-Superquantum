@@ -1,19 +1,13 @@
 from __future__ import annotations
-from typing import List, Sequence, Union
+from typing import List
 
 from qiskit import QuantumCircuit
 
 import mpmath
 from pygridsynth.gridsynth import gridsynth_gates
 
-GateSeq = Union[str, Sequence[str]]
-
-def _tokenize(gates: GateSeq) -> List[str]:
-    if isinstance(gates, str):
-        s = gates.strip().replace(" ", "")
-    else:
-        s = "".join(str(g).strip() for g in gates)
-    
+def _tokenize(gates: str) -> List[str]:
+    s = gates.strip().replace(" ", "")
     s = "".join(c for c in s.upper() if c in "HTSX")
     
     while "TTTTTTT" in s:
@@ -49,7 +43,7 @@ def _apply_gate(qc: QuantumCircuit, g: str, i: int, dagger: bool) -> None:
         return
 
 
-def gates_to_qiskit_circuit(gates: GateSeq, i: int, reverse: bool) -> QuantumCircuit:
+def gates_to_qiskit_circuit(gates: str, i: int, reverse: bool) -> QuantumCircuit:
     toks = _tokenize(gates)
 
     ordered = toks if reverse else list(reversed(toks))
