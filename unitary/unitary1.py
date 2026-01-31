@@ -9,5 +9,5 @@ qc.tdg(1)
 qc.tdg(1)
 
 qasm3_str = dumps3(qc)
-with open("../qasm/unitary1.qasm", 'w') as file:
+with open("qasm/unitary1.qasm", 'w') as file:
     file.write(qasm3_str)

@@ -43,7 +43,7 @@ def _apply_gate(qc: QuantumCircuit, g: str, dagger: bool) -> None:
         return
 
 
-def gates_to_qiskit_circuit(gates: str, i: int, reverse: bool) -> QuantumCircuit:
+def gates_to_qiskit_circuit(gates: str, reverse: bool) -> QuantumCircuit:
     toks = _tokenize(gates)
 
     ordered = toks if reverse else list(reversed(toks))
@@ -64,3 +64,12 @@ def Rz(theta: float, epsilon: float) -> QuantumCircuit:
     gates = gridsynth_gates(theta=theta, epsilon=epsilon)
 
     return gates_to_qiskit_circuit(gates, reverse)
+
+def Ry(theta: float, epsilon: float) -> QuantumCircuit:
+    qc = QuantumCircuit(1)
+
+    qc.t(0); qc.t(0)
+    qc.append(Rz(theta, epsilon).to_gate(), [0])
+    qc.tdg(0); qc.tdg(0)
+
+    return qc

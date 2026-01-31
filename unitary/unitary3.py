@@ -12,5 +12,5 @@ qc.append(Rz(2*theta, epsilon).to_gate(), [1])
 qc.cx(0, 1)
 
 qasm3_str = dumps3(qc)
-with open("../qasm/unitary3.qasm", 'w') as file:
+with open("qasm/unitary3.qasm", 'w') as file:
     file.write(qasm3_str)
