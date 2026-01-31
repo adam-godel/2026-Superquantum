@@ -19,6 +19,18 @@ expected = {
     ])
 }
 
+def little_endian_to_big_endian(U: np.ndarray) -> np.ndarray:
+    """
+    Convert a unitary matrix from little-endian to big-endian qubit ordering.
+    In little-endian: qubit 0 is rightmost (least significant bit)
+    In big-endian: qubit 0 is leftmost (most significant bit)
+    """
+    P = np.array([[1, 0, 0, 0],
+                  [0, 0, 1, 0],
+                  [0, 1, 0, 0],
+                  [0, 0, 0, 1]])
+    return P @ U @ P
+
 def load_qasm_circuit(path: str) -> QuantumCircuit:
     """
     Load an OpenQASM 3 file into a Qiskit QuantumCircuit.
@@ -95,6 +107,9 @@ def main():
 
     # ---- 2) Load QASM -> circuit ----
     qc = load_qasm_circuit(args.qasm_file)
+    
+    # We'll convert the QASM matrix to match expected ordering, not the other way around
+    # U_expected_converted = little_endian_to_big_endian(U_expected, qc.num_qubits)
 
     # Guardrail: Operator needs unitary-only circuit (no measurements/resets)
     if qc.num_clbits > 0:
@@ -106,22 +121,28 @@ def main():
     # ---- 3) Circuit -> unitary ----
     U_qasm = circuit_unitary(qc)
     
+    # Convert QASM matrix from Qiskit's ordering to match expected matrix ordering
+    U_qasm_converted = little_endian_to_big_endian(U_qasm)
+    
     print("Matrix from QASM file:")
     print(U_qasm)
     print()
+    print("Converted matrix (Qiskit -> expected ordering):")
+    print(U_qasm_converted)
+    print()
 
     # ---- 4) Sanity: dimensions match ----
-    if U_qasm.shape != U_expected.shape:
+    if U_qasm_converted.shape != U_expected.shape:
         raise ValueError(
             f"Shape mismatch:\n"
-            f"  from QASM:     {U_qasm.shape}\n"
+            f"  from QASM:     {U_qasm_converted.shape}\n"
             f"  expected dict: {U_expected.shape}\n"
             f"QASM qubits: {qc.num_qubits} -> expected dimension {2**qc.num_qubits}"
         )
 
     # ---- 5) Compare ----
-    direct_ok = np.allclose(U_qasm, U_expected, atol=args.atol)
-    phase_ok, phase = equal_up_to_global_phase(U_qasm, U_expected, atol=args.atol)
+    direct_ok = np.allclose(U_qasm_converted, U_expected, atol=args.atol)
+    phase_ok, phase = equal_up_to_global_phase(U_qasm_converted, U_expected, atol=args.atol)
 
     print(f"QASM file: {args.qasm_file}")
     print(f"Inferred id: {unitary_id}")
@@ -135,11 +156,13 @@ def main():
 
     # Optional: show max entrywise error under best phase alignment
     if phase_ok:
-        err = np.max(np.abs(U_qasm - phase * U_expected))
+        err = np.max(np.abs(U_qasm_converted - phase * U_expected))
         print(f"Max |Δ| after phase alignment: {err:.3e}")
     else:
-        err = np.max(np.abs(U_qasm - U_expected))
+        err = np.max(np.abs(U_qasm_converted - U_expected))
         print(f"Max |Δ| (no phase alignment): {err:.3e}")
+    
+    print(f"\nUsed converted matrix (Qiskit -> expected ordering): True")
 
 
 if __name__ == "__main__":
