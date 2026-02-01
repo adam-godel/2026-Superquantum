@@ -7,6 +7,7 @@ import scipy.linalg
 from qiskit import QuantumCircuit, quantum_info
 from qiskit.quantum_info import Operator
 from qiskit.qasm3 import loads
+from scipy.linalg import expm
 
 X = np.array([[0, 1], [1, 0]])
 Y = np.array([[0, -1j], [1j, 0]])
@@ -15,6 +16,30 @@ Z = np.array([[1, 0], [0, -1]])
 RX = lambda theta: np.array([[np.cos(theta/2), -1j*np.sin(theta/2)], [-1j*np.sin(theta/2), np.cos(theta/2)]])
 RY = lambda theta: np.array([[np.cos(theta/2), -np.sin(theta/2)], [np.sin(theta/2), np.cos(theta/2)]])
 RZ = lambda theta: np.array([[np.exp(-1j*theta/2), 0], [0, np.exp(1j*theta/2)]])
+
+def parity(x: int, idxs: tuple[int, ...]) -> int:
+    p = 0
+    for i in idxs:
+        p ^= (x >> i) & 1
+    return p
+
+def hamiltonian_from_xor_phase_poly(n: int, poly: dict, global_phase=0.0):
+    dim = 1 << n
+    H = np.zeros((dim, dim), dtype=float)
+
+    for x in range(dim):
+        phase = global_phase
+        for idxs, angle in poly.items():
+            if parity(x, idxs):
+                phase += angle
+        H[x, x] = phase
+
+    return H
+
+def make_unitary(poly):
+    H = hamiltonian_from_xor_phase_poly(4, poly)
+    U_expm = expm(1j * H)
+    return U_expm
 
 def unitary_from_state(state: np.ndarray) -> np.ndarray:
     state = np.asarray(state, dtype=complex).reshape(-1)
@@ -72,7 +97,11 @@ expected = {
         [0, 1j, 0, 0],
         [0, 0, -0.5+0.5j, -0.5-0.5j]
     ]),
-    10: quantum_info.random_unitary(4, seed=42).data
+    10: quantum_info.random_unitary(4, seed=42).data,
+    11: make_unitary({(0,): np.pi/4, (1,): np.pi/4, (2,): np.pi/4, (3,): np.pi/4,
+        (0,1): np.pi/4, (0,2): np.pi/4, (0,3): np.pi/4,
+        (1,2): np.pi/4, (1,3): np.pi/4, (2,3): np.pi/4,
+        (1,2,3): np.pi/4})
 }
 
 def load_qasm_circuit(path: str) -> tuple[QuantumCircuit, str]:
