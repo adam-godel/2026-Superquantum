@@ -73,3 +73,7 @@ sdg q[1];
 sdg q[1];
 sdg q[1];
 cx q[0], q[1];
+_circuit_42 q[0];
+cx q[1], q[0];
+_circuit_48 q[0];
+cx q[1], q[0];
