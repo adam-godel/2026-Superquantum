@@ -1,6 +1,7 @@
 # iQuHack 2026: Superquantum Challenge
 
-**Team:** Adam Godel, Yebin Song, Nico Jackson, Travis Meyer, Timothy Wright  
+**Team Name:** 67 Qubits
+**Team Members:** Adam Godel, Yebin Song, Nico Jackson, Travis Meyer, Timothy Wright  
 **Affiliation:** Boston University, Boston, MA
 
 ---
