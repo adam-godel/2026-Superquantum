@@ -49,6 +49,12 @@ def run_optimization(unitary_id, theta):
             qc.sdg(0); qc.sdg(1)
             qc.h(0); qc.h(1)
 
+            qc.h(0); qc.h(1)
+            qc.cx(0, 1)
+            qc.append(Rz(-2*theta, eps).to_gate(), [1])
+            qc.cx(0, 1)
+            qc.h(0); qc.h(1)
+
         elif unitary_id == 6:
             qc.h(0); qc.h(1)
             qc.cx(0, 1)
@@ -56,8 +62,8 @@ def run_optimization(unitary_id, theta):
             qc.cx(0, 1)
             qc.h(0); qc.h(1)
 
-            qc.append(Rz(-2*theta, eps).to_gate(), [0])
-            qc.append(Rz(-2*theta, eps).to_gate(), [1])
+            qc.append(Rz(-theta, eps).to_gate(), [0])
+            qc.append(Rz(-theta, eps).to_gate(), [1])
         
         # Add more unitary cases as needed
         qasm_str = dumps3(qc)
