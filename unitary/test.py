@@ -4,7 +4,7 @@ import re
 import numpy as np
 import scipy.linalg
 
-from qiskit import QuantumCircuit
+from qiskit import QuantumCircuit, quantum_info
 from qiskit.quantum_info import Operator
 from qiskit.qasm3 import loads
 
@@ -71,7 +71,8 @@ expected = {
         [0, 0, -0.5+0.5j, 0.5+0.5j],
         [0, 1j, 0, 0],
         [0, 0, -0.5+0.5j, -0.5-0.5j]
-    ])
+    ]),
+    10: quantum_info.random_unitary(4, seed=42).data
 }
 
 def load_qasm_circuit(path: str) -> tuple[QuantumCircuit, str]:
