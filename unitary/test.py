@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import re
 import numpy as np
@@ -65,6 +66,25 @@ def unitary_from_state(state: np.ndarray) -> np.ndarray:
 
     return np.column_stack(basis)
 
+def _compute_challenge12():
+    """U = ∏ exp(-i π k/8 P) for all terms in challenge12.json."""
+    _pm = {'I': np.eye(2, dtype=complex), 'X': X, 'Y': Y, 'Z': Z}
+    _path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'challenge12.json')
+    with open(_path) as f:
+        _data = json.load(f)
+    _n   = _data['n']
+    _dim = 1 << _n
+    _U   = np.eye(_dim, dtype=complex)
+    for _term in _data['terms']:
+        # Kron in reversed order so qubit 0 is LSB (Qiskit convention)
+        _P = _pm[_term['pauli'][-1]]
+        for _i in range(len(_term['pauli']) - 2, -1, -1):
+            _P = np.kron(_P, _pm[_term['pauli'][_i]])
+        _theta = np.pi * _term['k'] / 8
+        # exp(-i θ P) = cos θ · I  −  i sin θ · P   (P² = I)
+        _U = (np.cos(_theta) * np.eye(_dim) - 1j * np.sin(_theta) * _P) @ _U
+    return _U
+
 expected = {
     1: np.block([
         [np.eye(2), np.zeros((2,2))],
@@ -100,7 +120,8 @@ expected = {
     11: make_unitary({(0,): np.pi/4, (1,): np.pi/4, (2,): np.pi/4, (3,): np.pi/4,
         (0,1): np.pi/4, (0,2): np.pi/4, (0,3): np.pi/4,
         (1,2): np.pi/4, (1,3): np.pi/4, (2,3): np.pi/4,
-        (1,2,3): np.pi/4})
+        (1,2,3): np.pi/4}),
+    12: _compute_challenge12(),
 }
 
 def load_qasm_circuit(path: str) -> tuple[QuantumCircuit, str]:
