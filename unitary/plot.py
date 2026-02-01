@@ -8,255 +8,330 @@ from qiskit.qasm3 import dumps as dumps3
 from utils import Ry, Rz
 from test import count_t_gates_manual, distance_global_phase, expected as EXPECTED_DICT
 
-
-def optimize_rz_gate(angle, epsilon):
+def smart_rz(qc, angle, eps, qubit, use_exact=True):
     """
-    Determines the best T/S gate decomposition for a given Rz angle.
-    Returns: (circuit_fragment, t_count, description)
+    Intelligently choose between exact T/S gates and synthesized Rz.
+    If use_exact=True and angle is a multiple of pi/4, use exact gates.
+    Otherwise, synthesize with given epsilon.
     """
     norm_angle = angle % (2 * math.pi)
     
-    # Check for exact special cases (zero T-cost)
-    if np.isclose(norm_angle, 0, atol=1e-10):
-        return None, 0, "identity"
-    if np.isclose(norm_angle, math.pi/2, atol=1e-10):
-        return lambda qc, q: qc.s(q), 0, "S"
-    if np.isclose(norm_angle, 3*math.pi/2, atol=1e-10):
-        return lambda qc, q: qc.sdg(q), 0, "S†"
-    if np.isclose(norm_angle, math.pi/4, atol=1e-10):
-        return lambda qc, q: qc.t(q), 1, "T"
-    if np.isclose(norm_angle, 7*math.pi/4, atol=1e-10):
-        return lambda qc, q: qc.tdg(q), 1, "T†"
+    if use_exact:
+        # Check for exact gate possibilities (zero T-cost or minimal T-cost)
+        if np.isclose(norm_angle, 0, atol=1e-10): 
+            return  # Identity, do nothing
+        elif np.isclose(norm_angle, math.pi/2, atol=1e-10):   
+            qc.s(qubit)
+            return
+        elif np.isclose(norm_angle, math.pi, atol=1e-10):     
+            qc.z(qubit)
+            return
+        elif np.isclose(norm_angle, 3*math.pi/2, atol=1e-10): 
+            qc.sdg(qubit)
+            return
+        elif np.isclose(norm_angle, math.pi/4, atol=1e-10):   
+            qc.t(qubit)
+            return
+        elif np.isclose(norm_angle, 7*math.pi/4, atol=1e-10): 
+            qc.tdg(qubit)
+            return
     
-    # For other angles, use Rz synthesis
-    rz_circuit = Rz(angle, epsilon)
-    qasm_str = dumps3(rz_circuit)
-    t_count = count_t_gates_manual(qasm_str)
-    
-    return lambda qc, q: qc.append(rz_circuit.to_gate(), [q]), t_count, f"Rz(eps={epsilon:.2e})"
+    # Fallback to synthesized Rz gate
+    qc.append(Rz(angle, eps).to_gate(), [qubit])
 
-
-def get_circuit_with_optimization(unitary_id, theta, eps):
+def smart_ry(qc, angle, eps, qubit, use_exact=True):
     """
-    Constructs circuits with optimized T/S gate replacements.
-    Returns: (circuit, total_t_count, optimization_details)
+    Intelligently choose between exact gates and synthesized Ry.
+    """
+    norm_angle = angle % (2 * math.pi)
+    
+    if use_exact:
+        if np.isclose(norm_angle, 0, atol=1e-10): 
+            return  # Identity
+        elif np.isclose(norm_angle, math.pi, atol=1e-10):
+            qc.y(qubit)
+            return
+    
+    # Fallback to synthesized Ry gate
+    qc.append(Ry(angle, eps).to_gate(), [qubit])
+
+
+def get_circuit_construction(uid, theta, eps, optimization_level=0):
+    """
+    Constructions from optim.py with configurable optimization.
+    
+    optimization_level:
+    0 = Always use synthesized Rz/Ry gates
+    1 = Use exact T/S gates when angles align with pi/4 multiples
     """
     qc = QuantumCircuit(2)
-    total_t_count = 0
-    optimizations = []
+    use_exact = (optimization_level >= 1)
     
-    def apply_optimized_rz(circuit, angle, epsilon, qubit, label=""):
-        nonlocal total_t_count
-        gate_func, t_cost, desc = optimize_rz_gate(angle, epsilon)
-        if gate_func:
-            gate_func(circuit, qubit)
-        total_t_count += t_cost
-        if label:
-            optimizations.append(f"{label}: {desc} (T={t_cost})")
+    if uid == 2:
+        smart_ry(qc, theta/2, eps, 1, use_exact)
+        qc.cx(0, 1)
+        smart_ry(qc, -theta/2, eps, 1, use_exact)
+        qc.cx(0, 1)
+        
+    elif uid == 3:
+        qc.cx(0, 1)
+        smart_rz(qc, -2*theta, eps, 1, use_exact)
+        qc.cx(0, 1)
+
+    elif uid == 4:
+        qc.h(0); qc.h(1)
+        qc.s(0); qc.s(1)
+        qc.h(0); qc.h(1)
+        qc.cx(0, 1)
+        smart_rz(qc, -2*theta, eps, 1, use_exact)
+        qc.cx(0, 1)
+        qc.h(0); qc.h(1)
+        qc.sdg(0); qc.sdg(1)
+        qc.h(0); qc.h(1)
+
+        qc.h(0); qc.h(1)
+        qc.cx(0, 1)
+        smart_rz(qc, -2*theta, eps, 1, use_exact)
+        qc.cx(0, 1)
+        qc.h(0); qc.h(1)
+
+    elif uid == 6:
+        qc.h(0); qc.h(1)
+        qc.cx(0, 1)
+        smart_rz(qc, -2*theta, eps, 1, use_exact)
+        qc.cx(0, 1)
+        qc.h(0); qc.h(1)
+
+        smart_rz(qc, -theta, eps, 0, use_exact)
+        smart_rz(qc, -theta, eps, 1, use_exact)
     
-    # Construction implementations with Rz tracking
-    if unitary_id == 2:
-        # Ry gates (these use Rz internally)
-        ry1 = Ry(theta/2, eps)
-        ry2 = Ry(-theta/2, eps)
-        qc.append(ry1.to_gate(), [0])
+    elif uid == 5:
+        # Unitary 5: Simple SWAP-like construction (no rotation needed)
+        qc.cx(0, 1)
         qc.cx(1, 0)
-        qc.append(ry2.to_gate(), [0])
+        qc.cx(0, 1)
+    
+    elif uid == 8:
+        # Unitary 8: Fixed gate construction with T gates
+        qc.h(1)
+        
+        qc.t(0)
+        qc.t(1)
+        qc.cx(0, 1)
+        qc.tdg(1)
+        qc.cx(0, 1)
+        
+        qc.h(0)
+        
+        qc.cx(0, 1)
+        qc.cx(1, 0)
+        qc.cx(0, 1)
+    
+    elif uid == 9:
+        # Unitary 9: Fixed gate construction with T and S gates
+        qc.h(0)
+        
+        qc.t(0)
+        qc.t(1)
+        qc.cx(1, 0)
+        qc.tdg(0)
         qc.cx(1, 0)
         
-        # Count T-gates from Ry decompositions
-        qasm_str = dumps3(qc)
-        total_t_count = count_t_gates_manual(qasm_str)
-
-    elif unitary_id == 3:
+        qc.h(0)
+        
+        qc.s(0)
+        qc.s(1)
+        qc.t(1)
+        
         qc.cx(0, 1)
-        apply_optimized_rz(qc, -2 * theta, eps, 1, "Rz(-2θ)")
+        qc.cx(1, 0)
         qc.cx(0, 1)
-
-    elif unitary_id == 4:
-        # Two layers of H-CX-Rz-CX-H
-        for layer in range(2):
-            qc.h([0, 1])
-            qc.cx(0, 1)
-            apply_optimized_rz(qc, -2 * theta, eps, 1, f"Layer{layer+1}")
-            qc.cx(0, 1)
-            qc.h([0, 1])
-
-    elif unitary_id == 6:
-        qc.h([0, 1])
-        qc.cx(0, 1)
-        apply_optimized_rz(qc, -2 * theta, eps, 1, "Rz(-2θ)")
-        qc.cx(0, 1)
-        qc.h([0, 1])
-        apply_optimized_rz(qc, -theta, eps, 0, "Rz(-θ) q0")
-        apply_optimized_rz(qc, -theta, eps, 1, "Rz(-θ) q1")
-
-    elif unitary_id == 7:
-        # Example construction 7 (you can customize)
-        qc.h([0, 1])
-        apply_optimized_rz(qc, -theta, eps, 0, "Rz(-θ) q0")
-        qc.cx(0, 1)
-        apply_optimized_rz(qc, -theta, eps, 1, "Rz(-θ) q1")
-        qc.cx(0, 1)
-        qc.h([0, 1])
-
-    elif unitary_id == 10:
-        # Example construction 10 (you can customize)
-        for i in range(3):
-            qc.cx(0, 1)
-            apply_optimized_rz(qc, -theta, eps, 1, f"Rz(-θ) iter{i}")
-            qc.cx(0, 1)
     
-    return qc, total_t_count, optimizations
+    elif uid == 7:
+        # Unitary 7: Add construction here when you have it
+        # This appears to be a custom unitary from a state vector
+        pass
+    
+    elif uid == 10:
+        # Unitary 10: Not defined in expected dict
+        pass
+        
+    return qc
 
 
-def run_comprehensive_analysis(unitary_ids, theta, epsilon_range=None):
+def run_plot(unitary_ids, theta, show_individual=True, show_combined=True):
     """
-    Runs comprehensive analysis across all constructions and epsilon values.
+    Creates comprehensive plots showing distance vs T-count tradeoffs.
+    
+    Args:
+        unitary_ids: List of unitary IDs to analyze
+        theta: Angle parameter for constructions
+        show_individual: If True, create individual plots for each construction
+        show_combined: If True, create a combined comparison plot
     """
-    if epsilon_range is None:
-        # More granular epsilon sampling for better curves
-        epsilon_range = [10**(-i/2) for i in range(2, 20)]
+    # Wide epsilon range to explore the full tradeoff curve
+    epsilons = [10**(-i/2) for i in range(2, 18)]
     
-    plt.figure(figsize=(12, 8))
+    # Try both optimization levels
+    optimization_levels = [0, 1]
     
-    # Track best configuration for each construction
-    results_summary = {}
+    all_results = {}
     
     for uid in unitary_ids:
         if uid not in EXPECTED_DICT:
             print(f"Warning: Unitary {uid} not in EXPECTED_DICT, skipping...")
             continue
         
-        t_counts = []
-        distances = []
-        epsilon_used = []
-        target_u = EXPECTED_DICT[uid]
-        
         print(f"\n{'='*60}")
-        print(f"Analyzing Unitary {uid}")
+        print(f"Analyzing Unitary {uid} (theta={theta:.4f} rad = {theta*180/math.pi:.2f}°)")
         print(f"{'='*60}")
-
-        for eps in epsilon_range:
-            qc, t_count, opts = get_circuit_with_optimization(uid, theta, eps)
+        
+        target_u = EXPECTED_DICT[uid]
+        results_by_opt = {}
+        
+        for opt_level in optimization_levels:
+            results = []
             
-            # Calculate distance
-            actual = Operator(qc).data
-            aligned = distance_global_phase(actual, target_u)
-            dist = np.linalg.norm(aligned - target_u)
+            for eps in epsilons:
+                qc = get_circuit_construction(uid, theta, eps, optimization_level=opt_level)
+                
+                # Skip if construction not implemented
+                if qc.num_qubits == 0:
+                    continue
+                
+                qasm_str = dumps3(qc)
+                t_count = count_t_gates_manual(qasm_str)
+                
+                # Distance calculation with global phase alignment
+                actual = Operator(qc).data
+                aligned = distance_global_phase(actual, target_u)
+                dist = np.linalg.norm(aligned - target_u)
+                
+                results.append((eps, t_count, dist))
+                
+            if results:
+                results_by_opt[opt_level] = results
+                
+                # Print summary for this optimization level
+                opt_name = "Synthesized only" if opt_level == 0 else "With exact gates"
+                print(f"\n{opt_name}:")
+                print(f"  Epsilon range: {min(r[0] for r in results):.2e} to {max(r[0] for r in results):.2e}")
+                print(f"  T-count range: {min(r[1] for r in results)} to {max(r[1] for r in results)}")
+                print(f"  Distance range: {min(r[2] for r in results):.2e} to {max(r[2] for r in results):.2e}")
+        
+        all_results[uid] = results_by_opt
+        
+        # Individual plot for this construction
+        if show_individual and results_by_opt:
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
             
-            t_counts.append(t_count)
-            distances.append(dist)
-            epsilon_used.append(eps)
+            for opt_level, results in results_by_opt.items():
+                # Filter: Keep best distance for each unique T-count
+                best_points = {}
+                for eps, t, d in results:
+                    # Convert distance to scalar if it's an array
+                    d_val = float(d) if hasattr(d, '__len__') else d
+                    if t not in best_points or d_val < best_points[t][0]:
+                        best_points[t] = (d_val, eps)
+                
+                sorted_t = sorted(best_points.keys())
+                sorted_d = [best_points[t][0] for t in sorted_t]
+                sorted_eps = [best_points[t][1] for t in sorted_t]
+                
+                opt_label = "Synthesized" if opt_level == 0 else "With exact gates"
+                
+                # Plot 1: Distance vs T-count (main plot)
+                ax1.plot(sorted_t, sorted_d, marker='o', linewidth=2, 
+                        markersize=6, label=opt_label, alpha=0.8)
+                
+                # Plot 2: Both T-count and distance vs epsilon (to show relationship)
+                ax2_twin = ax2.twinx()
+                line1 = ax2.plot(sorted_eps, sorted_t, marker='s', linewidth=2,
+                               label=f'{opt_label} (T-count)', alpha=0.7)
+                line2 = ax2_twin.plot(sorted_eps, sorted_d, marker='^', linewidth=2,
+                                     linestyle='--', label=f'{opt_label} (Distance)', alpha=0.7)
             
-            print(f"  ε={eps:.2e}: T-count={t_count:3d}, Distance={dist:.2e}")
-        
-        # Remove duplicates (same T-count) - keep the one with best distance
-        unique_data = {}
-        for t, d, e in zip(t_counts, distances, epsilon_used):
-            if t not in unique_data or d < unique_data[t][0]:
-                unique_data[t] = (d, e)
-        
-        # Sort by T-count for proper line plotting
-        sorted_t = sorted(unique_data.keys())
-        plot_distances = [unique_data[t][0] for t in sorted_t]
-        
-        # Store results
-        results_summary[uid] = {
-            't_counts': sorted_t,
-            'distances': plot_distances,
-            'min_dist': min(plot_distances),
-            'max_t': max(sorted_t)
-        }
-        
-        # Plot
-        plt.plot(sorted_t, plot_distances, marker='o', linewidth=2, 
-                markersize=6, label=f'Construction {uid}', alpha=0.8)
-        
-        print(f"  Best: T={min(sorted_t)} at distance {max(plot_distances):.2e}")
-        print(f"  Worst: T={max(sorted_t)} at distance {min(plot_distances):.2e}")
+            # Format Plot 1
+            ax1.set_yscale('log')
+            ax1.set_xlabel('T-Count (Gates)', fontsize=12, fontweight='bold')
+            ax1.set_ylabel('Distance to Target (Error)', fontsize=12, fontweight='bold')
+            ax1.set_title(f'Unitary {uid}: Distance vs T-Count Tradeoff', fontsize=13, fontweight='bold')
+            ax1.grid(True, which="both", ls="--", alpha=0.3)
+            ax1.legend(loc='best')
+            
+            # Format Plot 2
+            ax2.set_xscale('log')
+            ax2.set_xlabel('Epsilon (Synthesis Precision)', fontsize=12, fontweight='bold')
+            ax2.set_ylabel('T-Count', fontsize=12, fontweight='bold', color='tab:blue')
+            ax2_twin.set_ylabel('Distance', fontsize=12, fontweight='bold', color='tab:orange')
+            ax2_twin.set_yscale('log')
+            ax2.set_title(f'Unitary {uid}: Effect of Epsilon', fontsize=13, fontweight='bold')
+            ax2.grid(True, which="both", ls="--", alpha=0.3)
+            ax2.tick_params(axis='y', labelcolor='tab:blue')
+            ax2_twin.tick_params(axis='y', labelcolor='tab:orange')
+            
+            plt.tight_layout()
+            plt.savefig(f'unitary_{uid}_analysis.png', dpi=150, bbox_inches='tight')
+            print(f"  Saved plot: unitary_{uid}_analysis.png")
     
-    # Formatting
-    plt.yscale('log')
-    plt.xscale('log')
-    plt.xlabel('T-Count (Gates)', fontsize=12, fontweight='bold')
-    plt.ylabel('Distance to Target (Error)', fontsize=12, fontweight='bold')
-    plt.title(f'Construction Comparison: Distance vs T-Count\n(θ = {theta:.4f} rad = {theta*180/math.pi:.2f}°)', 
-            fontsize=14, fontweight='bold')
-    plt.grid(True, which="both", ls="--", alpha=0.3)
-    plt.legend(loc='best', fontsize=10)
-    plt.tight_layout()
-    plt.show()
-    
-    # Print summary
-    print(f"\n{'='*60}")
-    print("SUMMARY")
-    print(f"{'='*60}")
-    for uid, data in results_summary.items():
-        print(f"Construction {uid}:")
-        print(f"  T-count range: {min(data['t_counts'])} - {data['max_t']}")
-        print(f"  Best distance: {data['min_dist']:.2e}")
-        print(f"  Efficiency: {data['min_dist']/data['max_t']:.2e} (dist/T)")
-
-
-def compare_specific_epsilon(unitary_ids, theta, epsilon_values):
-    """
-    Compares constructions at specific epsilon values.
-    """
-    fig, axes = plt.subplots(1, len(epsilon_values), figsize=(6*len(epsilon_values), 5))
-    if len(epsilon_values) == 1:
-        axes = [axes]
-    
-    for idx, eps in enumerate(epsilon_values):
-        ax = axes[idx]
+    # Combined comparison plot
+    if show_combined and all_results:
+        plt.figure(figsize=(12, 8))
         
-        t_counts = []
-        distances = []
-        labels = []
+        colors = plt.cm.tab10(np.linspace(0, 1, len(all_results)))
         
-        for uid in unitary_ids:
-            if uid not in EXPECTED_DICT:
-                continue
+        for idx, (uid, results_by_opt) in enumerate(all_results.items()):
+            # Use optimization level 1 (with exact gates) for the combined view
+            opt_level = 1 if 1 in results_by_opt else 0
+            results = results_by_opt[opt_level]
             
-            qc, t_count, _ = get_circuit_with_optimization(uid, theta, eps)
+            # Filter: Keep best distance for each unique T-count
+            best_points = {}
+            for eps, t, d in results:
+                # Convert distance to scalar if it's an array
+                d_val = float(d) if hasattr(d, '__len__') else d
+                if t not in best_points or d_val < best_points[t]:
+                    best_points[t] = d_val
             
-            actual = Operator(qc).data
-            target_u = EXPECTED_DICT[uid]
-            aligned = distance_global_phase(actual, target_u)
-            dist = np.linalg.norm(aligned - target_u)
+            sorted_t = sorted(best_points.keys())
+            sorted_d = [best_points[t] for t in sorted_t]
             
-            t_counts.append(t_count)
-            distances.append(dist)
-            labels.append(f'U{uid}')
+            plt.plot(sorted_t, sorted_d, marker='o', linewidth=2.5, 
+                    markersize=8, label=f'Unitary {uid}', 
+                    color=colors[idx], alpha=0.8)
         
-        ax.scatter(t_counts, distances, s=100, alpha=0.7)
-        for i, label in enumerate(labels):
-            ax.annotate(label, (t_counts[i], distances[i]), 
-                    xytext=(5, 5), textcoords='offset points')
+        plt.yscale('log')
+        plt.xscale('log')
+        plt.xlabel('T-Count (Gates)', fontsize=13, fontweight='bold')
+        plt.ylabel('Distance to Target (Error)', fontsize=13, fontweight='bold')
+        plt.title(f'All Constructions: Efficiency Frontier\n(θ = {theta:.4f} rad = {theta*180/math.pi:.2f}°)', 
+                 fontsize=14, fontweight='bold')
+        plt.grid(True, which="both", ls="--", alpha=0.3)
+        plt.legend(loc='best', fontsize=11, framealpha=0.9)
+        plt.tight_layout()
+        plt.savefig('all_constructions_comparison.png', dpi=150, bbox_inches='tight')
+        print(f"\n{'='*60}")
+        print("Saved combined plot: all_constructions_comparison.png")
+        print(f"{'='*60}")
         
-        ax.set_yscale('log')
-        ax.set_xlabel('T-Count')
-        ax.set_ylabel('Distance')
-        ax.set_title(f'ε = {eps:.2e}')
-        ax.grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    plt.show()
-
+        plt.show()
 
 if __name__ == "__main__":
-    # Theta value (you can change this)
-    theta_val = math.pi / 7
+    # List all constructions you want to investigate
+    # Unitaries 5, 8, 9 don't use theta parameter (fixed constructions)
+    # Unitary 7 needs custom implementation
+    # Unitary 10 doesn't exist in expected dict
+    constructions_to_analyze = [2, 3, 4, 5, 6, 8, 9]
     
-    # All constructions to investigate
-    constructions = [2, 3, 4, 6, 7, 10]
+    theta_value = math.pi / 7
     
-    print(f"Running comprehensive analysis for θ = {theta_val:.4f} rad")
-    print(f"Constructions: {constructions}")
+    print(f"Running comprehensive analysis for θ = {theta_value:.4f} rad = {theta_value*180/math.pi:.2f}°")
+    print(f"Constructions: {constructions_to_analyze}")
+    print(f"Note: Unitaries 5, 8, 9 are fixed constructions (don't depend on theta or epsilon)")
+    print(f"\nThis will generate:")
+    print(f"  - Individual analysis plots for each construction")
+    print(f"  - Combined comparison plot showing all constructions")
+    print(f"  - Exploration of different epsilon values and optimization strategies")
     
-    # Main analysis
-    run_comprehensive_analysis(constructions, theta_val)
-    
-    # Optional: Compare at specific epsilon values
-    print("\nGenerating epsilon-specific comparison...")
-    compare_specific_epsilon(constructions, theta_val, [1e-2, 1e-4, 1e-6])
+    run_plot(constructions_to_analyze, theta_value, 
+             show_individual=True, show_combined=True)
