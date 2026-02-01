@@ -2,6 +2,7 @@
 \usepackage{authblk}
 \usepackage{amsmath}
 \usepackage{cite}
+\usepackage{graphicx}
 \usepackage{tikz}
 \usetikzlibrary{quantikz2}
 \newtheorem{theorem}{Theorem}
@@ -203,6 +204,35 @@ In the case of a random unitary operator, we can just use the exact same protoco
 
 \subsection{Four-Qubit Diagonal Unitary}
 Placeholder
+
+\section{Simulations}
+Given the intrinsic tradeoff between $T$-gate count and approximation accuracy, our research investigated different optimization regimes for various target operators. For unitaries $2, 3, 4, 6, 7,$ and $10$, we utilized a modular strategy where the circuit's total $T$-count was primarily determined by the precision ($\epsilon$) of our $R_z(\theta)$ gate decompositions.
+\subsection{Unitary 2}
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.48\textwidth]{unitary_2_distance_vs_tcount.png}
+	\caption{T-count vs. distance tradeoff for Unitary 2.}
+	\label{fig:unitary2}
+\end{figure}
+Figure 1 depicts varying epsilon values for Unitary 2. While increasing the {T} gate count initially causes some instability, the approximation eventually plateaus, indicating that further gate additions within this specific $T$-count range ($20$ to $200$) do not significantly improve the accuracy for this particular unitary.
+
+\subsection{Unitary 3}
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.48\textwidth]{unitary_3_distance_vs_tcount.png}
+	\caption{T-count vs. distance tradeoff for Unitary 3.}
+	\label{fig:unitary3}
+\end{figure}
+Figure 2 depicts varying epsilon values for Unitary 3. The plot for Unitary 3 demonstrates a more traditional and successful convergence behavior compared to Unitary 2, showing how increasing the $T$-gate budget significantly improves approximation accuracy for this specific operator.
+
+\subsection{Unitary 10}
+\begin{figure}[htbp]
+	\centering
+	\includegraphics[width=0.48\textwidth]{unitary_10_distance_vs_tcount.png}
+	\caption{T-count vs. distance tradeoff for Unitary 10.}
+	\label{fig:unitary10}
+\end{figure}
+Figure 3 depicts varying epsilon values for Unitary 10. The plot for Unitary 10 illustrates a successful optimization trajectory where a higher investment in T-gates consistently leads to a lower approximation error, despite minor instabilities.
 
 \bibliographystyle{unsrt}
 \bibliography{main}
