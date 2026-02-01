@@ -1,30 +1,3 @@
-"""Clifford+T state-preparation synthesis for a 2-qubit state (multicore CPU).
-
-Strategy
---------
-1. Generate multiple 4×4 unitaries whose first column is the target state,
-   parameterized as  base @ diag(1, V)  with  V ∈ U(3).  This covers the
-   full space of orthonormal completions; different completions yield
-   different KAK rotation angles, so some are intrinsically cheaper.
-
-2. For each candidate unitary, decompose via KAK → u3+cx, synthesize every
-   rotation with gridsynth, and greedily relax individual epsilons while
-   the state-preparation fidelity holds.
-
-3. Pick the candidate with the fewest total T gates.
-
-Key insight
------------
-Only U|00⟩ matters, so we use fidelity
-    F = |⟨ψ| U |00⟩|²       (1 = perfect, 0 = worst)
-
-Multicore CPU mode
-------------------
-This version parallelizes *candidate evaluations* across CPU processes.
-It is CPU-only (no GPU or qiskit-aer dependency).
-"""
-
-# --- perf hygiene: avoid each process spawning many BLAS threads -----------
 import os as _os
 _os.environ.setdefault("OMP_NUM_THREADS", "1")
 _os.environ.setdefault("MKL_NUM_THREADS", "1")
@@ -44,12 +17,10 @@ from qiskit.circuit.library import UnitaryGate
 from utils import Rz, Ry, Rx
 from test import count_t_gates_manual
 
-# ── target (must match test.py case 7) ─────────────────────────────────────
 statevector = quantum_info.random_statevector(4, seed=42).data
 _target_sv = np.asarray(statevector, dtype=complex).flatten()
 _target_sv_conj = np.conj(_target_sv)
 
-# ── tuning knobs ───────────────────────────────────────────────────────────
 N_CANDIDATES       = 200
 CANDIDATE_SEED     = 42
 TARGET_FIDELITY    = 0.999999
@@ -58,25 +29,16 @@ ANGLE_TOL          = 1e-9
 EPS_COARSE = [10**(-i/2) for i in range(2, 18)]
 RELAXATION_FACTORS = [100, 50, 30, 20, 15, 10, 7, 5, 3, 2, 1.5, 1.3, 1.2, 1.1, 1.05, 1.02]
 
-# Borderline guard: if a computed fidelity is within this margin of threshold,
-# compute exact fidelity via Qiskit Statevector.evolve to match semantics.
 FIDELITY_MARGIN = 5e-11
 
-# Qiskit basis state |00>
 _SV0 = Statevector.from_int(0, 4)
 
-# CNOT permutations for 2 qubits in Qiskit little-endian ordering |q1 q0>
 _CX_PERM = {
     (0, 1): np.array([0, 3, 2, 1], dtype=np.int64),
     (1, 0): np.array([0, 1, 3, 2], dtype=np.int64),
 }
 
-# ───────────────────────────────────────────────────────────────────────────
-# Candidate generation
-# ───────────────────────────────────────────────────────────────────────────
-
 def _gram_schmidt_completion(sv):
-    """Extend sv to a 4×4 unitary (sv = column 0) via Gram-Schmidt."""
     sv = np.asarray(sv, dtype=complex).flatten()
     sv = sv / np.linalg.norm(sv)
     basis = [sv]
@@ -94,12 +56,10 @@ def _gram_schmidt_completion(sv):
 
 
 def generate_candidates(sv, n, seed):
-    """Return n unitaries that each map |00⟩ → sv."""
     base = _gram_schmidt_completion(sv)
     candidates = [base]
     rng = np.random.default_rng(seed)
     for _ in range(n - 1):
-        # Haar-random U(3): QR of a Ginibre matrix, phase-corrected
         A = rng.standard_normal((3, 3)) + 1j * rng.standard_normal((3, 3))
         Q, R = np.linalg.qr(A)
         Q = Q @ np.diag(R.diagonal() / np.abs(R.diagonal()))
@@ -108,17 +68,11 @@ def generate_candidates(sv, n, seed):
         candidates.append(base @ D)
     return candidates
 
-# ───────────────────────────────────────────────────────────────────────────
-# Qiskit gate extraction
-# ───────────────────────────────────────────────────────────────────────────
-
 def normalize_angle(a):
-    """Reduce angle to (-π, π]."""
     return float((a + np.pi) % (2 * np.pi) - np.pi)
 
 
 def extract_ops(target_matrix):
-    """Transpile a 2-qubit unitary and return a flat op list."""
     qc = QuantumCircuit(2)
     qc.append(UnitaryGate(target_matrix), [0, 1])
     template = transpile(
@@ -159,10 +113,6 @@ def extract_ops(target_matrix):
 
     return ops
 
-# ───────────────────────────────────────────────────────────────────────────
-# Clifford+T synthesis helpers (per-process cache)
-# ───────────────────────────────────────────────────────────────────────────
-
 _cache = {}  # key -> {"gate": Gate, "t_count": int, "mat": np.ndarray}
 
 
@@ -185,12 +135,9 @@ def gate_matrix(axis, angle, eps):
         synthesize(axis, angle, eps)
     e = _cache[key]
     if e["mat"] is None:
-        e["mat"] = Operator(e["gate"]).data  # 2x2
+        e["mat"] = Operator(e["gate"]).data
     return e["mat"]
 
-# ───────────────────────────────────────────────────────────────────────────
-# Fast fidelity simulation (numpy, batched over trials)
-# ───────────────────────────────────────────────────────────────────────────
 
 def apply_1q_gate_batch(state_b4, U2, qubit):
     """
@@ -198,15 +145,13 @@ def apply_1q_gate_batch(state_b4, U2, qubit):
     U2: (2,2) or (B,2,2)
     """
     B = state_b4.shape[0]
-    st = state_b4.reshape(B, 2, 2)  # [q1, q0]
+    st = state_b4.reshape(B, 2, 2)
     if qubit == 0:
-        # st @ U^T
         if U2.ndim == 2:
-            out = np.einsum("bij,kj->bik", st, U2)   # uses U2[k,j] = (U^T)[j,k]
+            out = np.einsum("bij,kj->bik", st, U2)
         else:
             out = np.einsum("bij,bkj->bik", st, U2)
     elif qubit == 1:
-        # U @ st
         if U2.ndim == 2:
             out = np.einsum("ij,bjk->bik", U2, st)
         else:
@@ -257,10 +202,6 @@ def fidelity_exact_qiskit(qc):
     overlap = np.vdot(_target_sv, out)
     return float(np.abs(overlap) ** 2)
 
-# ───────────────────────────────────────────────────────────────────────────
-# Circuit build + T-count
-# ───────────────────────────────────────────────────────────────────────────
-
 def build_circuit(ops, eps_list):
     """Assemble the full 2-qubit Clifford+T circuit."""
     qc = QuantumCircuit(2)
@@ -282,15 +223,10 @@ def total_t_count(ops, rotation_indices, eps_list):
         for j, idx in enumerate(rotation_indices)
     )
 
-# ───────────────────────────────────────────────────────────────────────────
-# Candidate optimization (same greedy semantics)
-# ───────────────────────────────────────────────────────────────────────────
-
 def optimize_candidate_ops(ops, cid):
     rotation_indices = [i for i, op in enumerate(ops) if op[0] in ("rx", "ry", "rz")]
     n_rot = len(rotation_indices)
 
-    # Phase 1: sweep EPS_COARSE (batched)
     eps_vals = np.array([float(e) for e in EPS_COARSE], dtype=np.float64)
     eps_matrix = np.tile(eps_vals[:, None], (1, n_rot))
     states = simulate_batch(ops, eps_matrix)
@@ -313,7 +249,6 @@ def optimize_candidate_ops(ops, cid):
     current_eps = [float(hit_eps)] * n_rot
     current_t   = total_t_count(ops, rotation_indices, current_eps)
 
-    # Phase 2: greedy relax per rotation (batched per rotation)
     max_iterations = 50
     for _ in range(max_iterations):
         improved = False
@@ -375,20 +310,10 @@ def optimize_candidate_ops(ops, cid):
 
     return (cid, (current_t, fid_final, ops, rotation_indices, current_eps))
 
-
-# ───────────────────────────────────────────────────────────────────────────
-# Worker: candidate_matrix -> ops -> optimize
-# ───────────────────────────────────────────────────────────────────────────
-
 def worker_task(args):
     cid, cand_matrix = args
     ops = extract_ops(cand_matrix)
     return optimize_candidate_ops(ops, cid)
-
-
-# ───────────────────────────────────────────────────────────────────────────
-# Main
-# ───────────────────────────────────────────────────────────────────────────
 
 def _default_mp_start():
     methods = mp.get_all_start_methods()
@@ -434,9 +359,6 @@ def main():
                 print(f"  [{cid:2d}] T={tc:4d}  fidelity={fid:.10f}  ({n_rot} rot, {n_cx} cx)")
     t1 = time.perf_counter()
 
-    # Deterministic selection with original tie-breaker:
-    # lower T, then higher fidelity, then lower candidate id.
-    best = None  # (tc, fid, cid, ops, rot_idx, eps_list)
     for cid in range(N_CANDIDATES):
         res = results.get(cid)
         if res is None:
