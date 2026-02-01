@@ -11,8 +11,6 @@
 Our complete technical writeup is available in the `writeup/` directory:
 
 - **PDF**: [`writeup/main.pdf`](writeup/main.pdf) - **Start here!** This is the compiled document with all our implementations, optimizations, and experimental results.
-- **LaTeX Source**: [`writeup/main.tex`](writeup/main.tex) - The source file for the writeup.
-- **Bibliography**: [`writeup/main.bib`](writeup/main.bib) - References and citations.
 
 - **Slides**: Access our slides [here!](https://docs.google.com/presentation/d/1q9z32plF9qOmsmKggezTibO6qC0Dm3mvM3ZvNwCfbd8/edit?usp=sharing)
 
