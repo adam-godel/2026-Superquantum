@@ -40,7 +40,7 @@ A \emph{two-qubit quantum state} is represented as
 \end{equation}
 where $|\alpha|^2+|\beta|^2+|\gamma|^2+|\delta|^2=1$. A quantum state can be acted upon with \emph{quantum gates}, which are represented as unitary matrices $A \in U(2^n)$ for $n$ qubits such that $|\psi\rangle \mapsto A|\psi\rangle$, which is a valid $n$-qubit quantum state.
 
-The following quantum gates are known as the \emph{Clifford gates}\cite{PhysRevA.57.127}:
+The following quantum gates are known as the \emph{Clifford gates}~\cite{PhysRevA.57.127}:
 \begin{align}
 	H = \frac{1}{\sqrt{2}}\begin{bmatrix}
  	1 & 1 \\
@@ -64,7 +64,7 @@ When combined with the $T$ gate, defined as
  0 & e^{i\frac{\pi}{4}}
  \end{bmatrix},
 \end{equation}
-they form a \emph{universal gate set}\cite{PhysRevA.105.052602}, meaning that any unitary operation can be approximated to arbitrary precision using circuits built with just these four gates.
+they form a \emph{universal gate set}~\cite{PhysRevA.105.052602}, meaning that any unitary operation can be approximated to arbitrary precision using circuits built with just these four gates.
 
 Moreover, the \emph{Gottesman-Knill theorem}~\cite{PhysRevA.70.052328} shows that the Clifford gates can be simulated in polynomial time on a classical computer. This reduces the ``hardness'' of a quantum circuit to be described in the number of $T$ gates it contains. 
 
@@ -181,7 +181,7 @@ its structure in the computational basis would be reminiscent of the following:
 \end{equation}
 where the $*$ symbols depict ``free variables'' that we don't care about the specific values of. The key observation is that for this matrix to be unitary, these columns must form an orthonormal basis, and the specific values of these free variables will greatly affect the number of $T$ gates.
 
-Therefore, our protocol is the following: we first generate a complete unitary using the Gram-Schmidt process, encoding randomness on many different diagonal matrices that are applied to each sample unitary.~\cite{Zhang2021QuantumGS} We then test each candidate unitary over many different values of $\epsilon$. To balance the tradeoff, we start with a fidelity threshold compared to the expected state, and once that is hit, we then test over $\epsilon$ to minimize the number of $T$ gates.
+Therefore, our protocol is the following: we first generate a complete unitary using the Gram-Schmidt process, encoding randomness on many different diagonal matrices that are applied to each sample unitary~\cite{Zhang2021QuantumGS}. We then test each candidate unitary over many different values of $\epsilon$. To balance the tradeoff, we start with a fidelity threshold compared to the expected state, and once that is hit, we then test over $\epsilon$ to minimize the number of $T$ gates.
 
 More precisely, we transpile the circuit into rotation gates using \texttt{qiskit}, and then decompose each one with a different most optimized $\epsilon$ value by comparing individually to the fidelity of the state with that operator applied as well as its individual $T$ gate count.
 
@@ -197,7 +197,7 @@ We aim to apply the unitary
  	1 & -i & -1 & i
  \end{bmatrix}.
 \end{equation}
-Notice that this unitary is the two-qubit quantum Fourier transform\cite{RossSelinger2014OptimalAncillaFree}. Since it only requires $z$ rotations that are multiples of $\frac{\pi}{4}$, we do not need any rotation gates. Our implementation uses only three $T$ gates.
+Notice that this unitary is the two-qubit quantum Fourier transform~\cite{RossSelinger2014OptimalAncillaFree}. Since it only requires $z$ rotations that are multiples of $\frac{\pi}{4}$, we do not need any rotation gates. Our implementation uses only three $T$ gates.
 
 \subsection{Another Structured Unitary}
 We aim to apply the unitary
