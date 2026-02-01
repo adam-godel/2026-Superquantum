@@ -106,7 +106,7 @@ The problem now reduces to an implementation of $R_y(\theta)$. We can observe th
 
 We implement a Clifford + $T$ gate approximation of $R_z(\theta)$ using the \texttt{gridsynth} package~\cite{10.5555/3179330.3179331}, which takes in an angle $\theta$ and a precision $\epsilon$ and computes a decomposition for $R_z(\theta)$ with a $T$-gate count within $O(\log(\log(1/\epsilon)))$ of optimal.
 
-This allows us to modularly use the $R_x$, $R_y$, and $R_z$ gates, noting that they are the most expensive operation, so we should aim to minimize their usage. \textbf{[todo: results with and without rotation gates]}
+This allows us to modularly use the $R_x$, $R_y$, and $R_z$ gates, noting that they are the most expensive operation, so we should aim to minimize their usage.
 
 \subsection{Exponential of a Pauli String}
 We next tackle the implementation of $\exp(i\frac{\pi}{7} ZZ)$. We can observe that 
