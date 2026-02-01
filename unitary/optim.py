@@ -78,4 +78,4 @@ def run_optimization(unitary_id, theta):
 
 if __name__ == "__main__":
     # change to run w diff unitarys
-    run_optimization(4, math.pi/7)
+    run_optimization(6, math.pi/7)
