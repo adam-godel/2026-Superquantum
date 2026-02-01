@@ -106,7 +106,9 @@ v_angles = (v_phi, v_theta, v_lam)
 basis_gates = ["h", "cx", "s", "sdg", "t", "tdg"]
 max_total_gates = 10_000
 target_fidelity = 0.97
-epsilon_candidates = [10 ** (-i / 2) for i in range(2, 15)]  # 1e-1 -> 1e-7
+epsilon_coarse = [1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7]
+refine_steps = 5
+num_seeds = 100
 
 best = None
 best_score = None
@@ -115,20 +117,21 @@ selected_eps = None
 min_total_gates = None
 max_fid_overall = None
 
-for eps in epsilon_candidates:
+def evaluate_epsilon(eps: float) -> dict:
     candidate_best = None
     candidate_score = None
     candidate_fid = None
     candidate_min_total = None
+    max_fid_eps = None
 
     base_qc = build_approx_circuit(eps, theta, u_angles, v_angles)
     print(f"\nEpsilon {eps:.1e}")
 
-    for seed in range(100):
+    for seed in range(num_seeds):
         tqc = transpile(
             base_qc,
             basis_gates=basis_gates,
-            optimization_level=3,
+            optimization_level=2,
             seed_transpiler=seed,
         )
 
@@ -137,12 +140,28 @@ for eps in epsilon_candidates:
         if candidate_min_total is None or total_gates < candidate_min_total:
             candidate_min_total = total_gates
 
+        t_count = ops.get("t", 0) + ops.get("tdg", 0)
+        depth = tqc.depth()
+
         if total_gates > max_total_gates:
+            print(
+                f"  seed={seed:02d} total={total_gates:5d} t={t_count:4d} "
+                f"depth={depth:4d} fid=skipped -> skip (gate cap)"
+            )
+            continue
+
+        score = (total_gates, t_count, depth)
+
+        if candidate_score is not None and score >= candidate_score:
+            print(
+                f"  seed={seed:02d} total={total_gates:5d} t={t_count:4d} "
+                f"depth={depth:4d} fid=skipped -> skip (worse score)"
+            )
             continue
 
         fid = state_fidelity(Statevector.from_instruction(tqc), psi)
-        if max_fid_overall is None or fid > max_fid_overall:
-            max_fid_overall = fid
+        if max_fid_eps is None or fid > max_fid_eps:
+            max_fid_eps = fid
 
         if fid < target_fidelity:
             print(
@@ -151,34 +170,64 @@ for eps in epsilon_candidates:
             )
             continue
 
-        t_count = ops.get("t", 0) + ops.get("tdg", 0)
-        depth = tqc.depth()
-        score = (total_gates, t_count, depth)
+        candidate_best = tqc
+        candidate_score = score
+        candidate_fid = fid
+        print(
+            f"  seed={seed:02d} total={total_gates:5d} t={t_count:4d} "
+            f"depth={depth:4d} fid={fid:.6f} -> best for epsilon"
+        )
 
-        if candidate_score is None or score < candidate_score:
-            candidate_best = tqc
-            candidate_score = score
-            candidate_fid = fid
-            print(
-                f"  seed={seed:02d} total={total_gates:5d} t={t_count:4d} "
-                f"depth={depth:4d} fid={fid:.6f} -> best for epsilon"
-            )
-        else:
-            print(
-                f"  seed={seed:02d} total={total_gates:5d} t={t_count:4d} "
-                f"depth={depth:4d} fid={fid:.6f}"
-            )
+    return {
+        "best": candidate_best,
+        "score": candidate_score,
+        "fid": candidate_fid,
+        "min_total": candidate_min_total,
+        "max_fid": max_fid_eps,
+    }
 
-    if candidate_min_total is not None:
-        if min_total_gates is None or candidate_min_total < min_total_gates:
-            min_total_gates = candidate_min_total
 
-    if candidate_best is not None:
-        best = candidate_best
-        best_score = candidate_score
-        best_fid = candidate_fid
-        selected_eps = eps
+print("\nCoarse epsilon sweep")
+prev_eps = None
+selected = None
+
+for eps in epsilon_coarse:
+    result = evaluate_epsilon(eps)
+    if result["min_total"] is not None:
+        if min_total_gates is None or result["min_total"] < min_total_gates:
+            min_total_gates = result["min_total"]
+    if result["max_fid"] is not None:
+        if max_fid_overall is None or result["max_fid"] > max_fid_overall:
+            max_fid_overall = result["max_fid"]
+
+    if result["best"] is not None:
+        selected = (eps, result)
         break
+    prev_eps = eps
+
+if selected is not None and prev_eps is not None:
+    print(f"\nRefining between {prev_eps:.1e} and {selected[0]:.1e}")
+    refine_eps = np.logspace(np.log10(prev_eps), np.log10(selected[0]), num=refine_steps)
+    for eps in refine_eps[1:-1]:
+        result = evaluate_epsilon(float(eps))
+        if result["min_total"] is not None:
+            if min_total_gates is None or result["min_total"] < min_total_gates:
+                min_total_gates = result["min_total"]
+        if result["max_fid"] is not None:
+            if max_fid_overall is None or result["max_fid"] > max_fid_overall:
+                max_fid_overall = result["max_fid"]
+
+        if result["best"] is not None:
+            selected = (float(eps), result)
+            break
+
+if selected is not None:
+    selected_eps, selected_result = selected
+    best = selected_result["best"]
+    best_score = selected_result["score"]
+    best_fid = selected_result["fid"]
+else:
+    selected_eps = None
 
 
 if best is None:
