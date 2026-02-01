@@ -177,10 +177,6 @@ def main():
 
     U_qasm = circuit_unitary(qc)
     
-    print("Expected matrix:")
-    print(np.round(U_expected, 6))
-    print()
-
     if U_qasm.shape != U_expected.shape:
         raise ValueError(
             f"Shape mismatch:\n"
@@ -189,14 +185,39 @@ def main():
             f"QASM qubits: {qc.num_qubits} -> expected dimension {2**qc.num_qubits}"
         )
 
-    aligned = distance_global_phase(U_qasm, U_expected)
+    if unitary_id == 7:
+        # State-prep: only U|00⟩ matters, compare states via fidelity
+        psi_expected = U_expected[:, 0]
+        psi_actual   = U_qasm[:, 0]
 
-    print("Best-aligned actual matrix (phase * actual, rounded to 6 decimals):")
-    print(np.round(aligned, 6))
-    print()
+        print("Expected state:")
+        print(np.round(psi_expected, 6))
+        print()
 
-    err = np.linalg.norm(aligned - U_expected)
-    print(f"Min |Δ|: {err:.3e}")
+        # Align global phase: find e^{iφ} maximising Re(⟨expected|e^{iφ}·actual⟩)
+        overlap = np.vdot(psi_expected, psi_actual)
+        best_phase = np.conj(overlap) / abs(overlap) if abs(overlap) > 0 else 1.0 + 0.0j
+        aligned_state = best_phase * psi_actual
+
+        print("Actual state (phase-aligned U|00⟩):")
+        print(np.round(aligned_state, 6))
+        print()
+
+        fidelity = abs(overlap) ** 2
+        print(f"Fidelity |⟨ψ|U|00⟩|²: {fidelity:.10f}")
+    else:
+        print("Expected matrix:")
+        print(np.round(U_expected, 6))
+        print()
+
+        aligned = distance_global_phase(U_qasm, U_expected)
+
+        print("Best-aligned actual matrix (phase * actual, rounded to 6 decimals):")
+        print(np.round(aligned, 6))
+        print()
+
+        err = np.linalg.norm(aligned - U_expected)
+        print(f"Min |Δ|: {err:.3e}")
 
     # print t gate count
     t_count = count_t_gates_manual(qasm_src)

@@ -1,386 +1,321 @@
+"""Clifford+T state-preparation synthesis for a 2-qubit state.
+
+Strategy
+--------
+1. Generate multiple 4×4 unitaries whose first column is the target state,
+   parameterized as  base @ diag(1, V)  with  V ∈ U(3).  This covers the
+   full space of orthonormal completions; different completions yield
+   different KAK rotation angles, so some are intrinsically cheaper.
+
+2. For each candidate unitary, decompose via KAK → u3+cx, synthesize every
+   rotation with gridsynth, and greedily relax individual epsilons while
+   the state-preparation fidelity holds.
+
+3. Pick the candidate with the fewest total T gates.
+
+Key insight
+-----------
+Only U|00⟩ matters, so we use fidelity
+    F = |⟨ψ| U |00⟩|²       (1 = perfect, 0 = worst)
+instead of full operator Frobenius distance.  This is strictly weaker than
+the operator metric in unitary10.py, giving the synthesizer more room to
+trade accuracy on the unused columns for fewer T gates.
+"""
+
 import numpy as np
-from qiskit import QuantumCircuit, transpile
-from qiskit.quantum_info import Statevector, Operator, state_fidelity
+from qiskit import QuantumCircuit, quantum_info, transpile
+from qiskit.quantum_info import Operator
 from qiskit.qasm3 import dumps as dumps3
-from qiskit.transpiler import PassManager
-from qiskit.transpiler.passes import (
-    CommutativeCancellation,
-    InverseCancellation,
-    Optimize1qGatesDecomposition,
-    OptimizeCliffordT,
-)
+from qiskit.circuit.library import UnitaryGate
 
-from utils import Rz, Ry
+from utils import Rz, Ry, Rx
+from test import count_t_gates_manual
 
-psi = np.array([
-    0.1061479384 - 0.6796414670j,   # |00>
-   -0.3622775887 - 0.4536131360j,   # |01>
-    0.2614190429 + 0.0445330969j,   # |10>
-    0.3276449279 - 0.1101628411j    # |11>
-], dtype=complex)
+# ── target (must match test.py case 7) ─────────────────────────────────────
+statevector = quantum_info.random_statevector(4, seed=42).data
 
-psi = psi / np.linalg.norm(psi)    # normalize (safe)
-M = psi.reshape(2, 2)
-U, s, Vh = np.linalg.svd(M)
-V = Vh.conj().T
-s0, s1 = s
-theta = 2 * np.arctan2(s1, s0)
-V_star = V.conj()
+# ── tuning knobs ───────────────────────────────────────────────────────────
+N_CANDIDATES       = 20
+CANDIDATE_SEED     = 42
+TARGET_FIDELITY    = 0.9975     # minimum acceptable |⟨ψ|U|00⟩|²
+ANGLE_TOL          = 1e-9
 
-
-def decompose_zyz(U_in: np.ndarray) -> tuple[float, float, float, float]:
-    det = np.linalg.det(U_in)
-    phase = np.angle(det) / 2
-    U_local = U_in * np.exp(-1j * phase)
-
-    a = U_local[0, 0]
-    b = U_local[0, 1]
-    c = U_local[1, 0]
-
-    theta_local = 2 * np.arctan2(np.abs(b), np.abs(a))
-
-    if np.isclose(np.abs(b), 0.0, atol=1e-12):
-        phi_local = 0.0
-        lam_local = -2 * np.angle(a)
-    elif np.isclose(np.abs(a), 0.0, atol=1e-12):
-        phi_local = 2 * np.angle(c)
-        lam_local = 0.0
-    else:
-        phi_minus_lambda = 2 * np.angle(c)
-        phi_plus_lambda = -2 * np.angle(a)
-        phi_local = 0.5 * (phi_minus_lambda + phi_plus_lambda)
-        lam_local = 0.5 * (phi_plus_lambda - phi_minus_lambda)
-
-    return phase, phi_local, theta_local, lam_local
-
-
-def normalize_angle(angle: float) -> float:
-    return float((angle + np.pi) % (2 * np.pi) - np.pi)
-
-
-def quantize_angle(angle: float, quantum: float | None) -> float:
-    if quantum is None:
-        return angle
-    return float(round(angle / quantum) * quantum)
-
-
-def choose_zyz_variant(phi: float, theta: float, lam: float, tol: float) -> tuple[float, float, float]:
-    variants = [
-        (phi, theta, lam),
-        (phi + np.pi, -theta, lam + np.pi),
-    ]
-
-    best = None
-    best_cost = None
-    for v_phi, v_theta, v_lam in variants:
-        v_phi = normalize_angle(v_phi)
-        v_theta = normalize_angle(v_theta)
-        v_lam = normalize_angle(v_lam)
-        cost = sum(abs(a) for a in (v_phi, v_theta, v_lam) if abs(a) >= tol)
-        if best_cost is None or cost < best_cost:
-            best_cost = cost
-            best = (v_phi, v_theta, v_lam)
-
-    return best
-
-
-def append_rot(
-    ops: list[tuple[str, float]],
-    axis: str,
-    angle: float,
-    tol: float,
-    quantum: float | None,
-) -> None:
-    angle = normalize_angle(angle)
-    angle = normalize_angle(quantize_angle(angle, quantum))
-    if abs(angle) < tol:
-        return
-    if ops and ops[-1][0] == axis:
-        merged = normalize_angle(ops[-1][1] + angle)
-        if abs(merged) < tol:
-            ops.pop()
-        else:
-            ops[-1] = (axis, merged)
-    else:
-        ops.append((axis, angle))
-
-
-RZ_GATE_CACHE: dict[tuple[float, float], object] = {}
-RY_GATE_CACHE: dict[tuple[float, float], object] = {}
-
-
-def cached_rz(angle: float, eps: float):
-    key = (angle, eps)
-    gate = RZ_GATE_CACHE.get(key)
-    if gate is None:
-        gate = Rz(angle, eps).to_gate()
-        RZ_GATE_CACHE[key] = gate
-    return gate
-
-
-def cached_ry(angle: float, eps: float):
-    key = (angle, eps)
-    gate = RY_GATE_CACHE.get(key)
-    if gate is None:
-        gate = Ry(angle, eps).to_gate()
-        RY_GATE_CACHE[key] = gate
-    return gate
-
-
-def apply_rotations(qc: QuantumCircuit, qubit: int, ops: list[tuple[str, float]], eps: float) -> None:
-    for axis, angle in ops:
-        if axis == "z":
-            qc.append(cached_rz(angle, eps), [qubit])
-        elif axis == "y":
-            qc.append(cached_ry(angle, eps), [qubit])
-        else:
-            raise ValueError(f"Unsupported axis {axis}")
-
-
-def append_zyz(qc: QuantumCircuit, qubit: int, phi: float, theta: float, lam: float, eps: float) -> None:
-    if not np.isclose(phi, 0.0, atol=1e-12):
-        qc.append(Rz(phi, eps).to_gate(), [qubit])
-    if not np.isclose(theta, 0.0, atol=1e-12):
-        qc.append(Ry(theta, eps).to_gate(), [qubit])
-    if not np.isclose(lam, 0.0, atol=1e-12):
-        qc.append(Rz(lam, eps).to_gate(), [qubit])
-
-
-def build_approx_circuit(
-    eps: float,
-    theta_in: float,
-    u_angles: tuple[float, float, float],
-    v_angles: tuple[float, float, float],
-    angle_tol: float,
-    angle_quantum: float | None,
-) -> QuantumCircuit:
-    qc_local = QuantumCircuit(2)
-
-    pre_q1: list[tuple[str, float]] = []
-    post_q1: list[tuple[str, float]] = []
-    post_q0: list[tuple[str, float]] = []
-
-    append_rot(pre_q1, "y", theta_in, angle_tol, angle_quantum)
-    append_rot(post_q1, "z", u_angles[0], angle_tol, angle_quantum)
-    append_rot(post_q1, "y", u_angles[1], angle_tol, angle_quantum)
-    append_rot(post_q1, "z", u_angles[2], angle_tol, angle_quantum)
-
-    append_rot(post_q0, "z", v_angles[0], angle_tol, angle_quantum)
-    append_rot(post_q0, "y", v_angles[1], angle_tol, angle_quantum)
-    append_rot(post_q0, "z", v_angles[2], angle_tol, angle_quantum)
-
-    apply_rotations(qc_local, 1, pre_q1, eps)
-    qc_local.cx(1, 0)
-    apply_rotations(qc_local, 1, post_q1, eps)
-    apply_rotations(qc_local, 0, post_q0, eps)
-
-    return qc_local
-
-
-# ============================================================
-# 3. Build a ZYZ-based approximation (no UnitaryGate)
-# ============================================================
-
-_, u_phi, u_theta, u_lam = decompose_zyz(U)
-_, v_phi, v_theta, v_lam = decompose_zyz(V_star)
-
-
-# ============================================================
-# 4. Search epsilons for fidelity >= target
-# ============================================================
-
-basis_gates = ["h", "cx", "s", "sdg", "t", "tdg"]
-max_total_gates = 10_000
-target_fidelity = 0.97
-fast_approx = True
-angle_prune_tol = 1e-3 if fast_approx else 1e-4
-angle_quantum = 1e-3 if fast_approx else None
-epsilon_coarse = [
+EPS_COARSE = [
     1e-1, 5e-2, 2e-2, 1e-2,
     5e-3, 2e-3, 1e-3,
     5e-4, 2e-4, 1e-4,
     5e-5, 2e-5, 1e-5,
-    5e-6, 2e-6, 1e-6,
-    5e-7, 2e-7, 1e-7,
 ]
-refine_steps = 9
-num_seeds = 100
-use_post_passes = True
-post_passes = PassManager(
-    [
-        Optimize1qGatesDecomposition(["h", "s", "sdg", "t", "tdg"]),
-        OptimizeCliffordT(),
-        CommutativeCancellation(),
-        InverseCancellation(),
-    ]
-)
-early_gatecap_seeds = 5
-
-best = None
-best_score = None
-best_fid = None
-selected_eps = None
-min_total_gates = None
-max_fid_overall = None
-
-def evaluate_epsilon(eps: float, u_angles: tuple[float, float, float], v_angles: tuple[float, float, float]) -> dict:
-    candidate_best = None
-    candidate_score = None
-    candidate_fid = None
-    candidate_min_total = None
-    max_fid_eps = None
-    gatecap_checks = 0
-    gatecap_hits = 0
-
-    base_qc = build_approx_circuit(eps, theta, u_angles, v_angles, angle_prune_tol, angle_quantum)
-    print(f"\nEpsilon {eps:.1e}")
-
-    for seed in range(num_seeds):
-        tqc = transpile(
-            base_qc,
-            basis_gates=basis_gates,
-            optimization_level=2,
-            seed_transpiler=seed,
-        )
-        if use_post_passes:
-            tqc = post_passes.run(tqc)
-
-        ops = tqc.count_ops()
-        total_gates = int(sum(ops.values()))
-        if candidate_min_total is None or total_gates < candidate_min_total:
-            candidate_min_total = total_gates
-
-        t_count = ops.get("t", 0) + ops.get("tdg", 0)
-        depth = tqc.depth()
-
-        if gatecap_checks < early_gatecap_seeds:
-            gatecap_checks += 1
-
-        if total_gates > max_total_gates:
-            if gatecap_checks <= early_gatecap_seeds:
-                gatecap_hits += 1
-                if gatecap_checks == early_gatecap_seeds and gatecap_hits == early_gatecap_seeds:
-                    print(
-                        f"  seed={seed:02d} total={total_gates:5d} t={t_count:4d} "
-                        f"depth={depth:4d} fid=skipped -> first {early_gatecap_seeds} over cap, "
-                        "skip epsilon"
-                    )
-                    break
-            print(
-                f"  seed={seed:02d} total={total_gates:5d} t={t_count:4d} "
-                f"depth={depth:4d} fid=skipped -> skip (gate cap)"
-            )
-            continue
-
-        score = (total_gates, t_count, depth)
-
-        if candidate_score is not None and score >= candidate_score:
-            print(
-                f"  seed={seed:02d} total={total_gates:5d} t={t_count:4d} "
-                f"depth={depth:4d} fid=skipped -> skip (worse score)"
-            )
-            continue
-
-        fid = state_fidelity(Statevector.from_instruction(tqc), psi)
-        if max_fid_eps is None or fid > max_fid_eps:
-            max_fid_eps = fid
-
-        if fid < target_fidelity:
-            print(
-                f"  seed={seed:02d} total={total_gates:5d} t={t_count:4d} "
-                f"depth={depth:4d} fid={fid:.6f} -> skip (below target)"
-            )
-            continue
-
-        candidate_best = tqc
-        candidate_score = score
-        candidate_fid = fid
-        print(
-            f"  seed={seed:02d} total={total_gates:5d} t={t_count:4d} "
-            f"depth={depth:4d} fid={fid:.6f} -> best for epsilon"
-        )
-
-    return {
-        "best": candidate_best,
-        "score": candidate_score,
-        "fid": candidate_fid,
-        "min_total": candidate_min_total,
-        "max_fid": max_fid_eps,
-    }
+RELAXATION_FACTORS = [100, 50, 20, 10, 5, 2]
 
 
-u_angles = choose_zyz_variant(u_phi, u_theta, u_lam, angle_prune_tol)
-v_angles = choose_zyz_variant(v_phi, v_theta, v_lam, angle_prune_tol)
+# ── candidate generation ───────────────────────────────────────────────────
 
-print("\nCoarse epsilon sweep")
-prev_eps = None
-selected = None
+def _gram_schmidt_completion(sv):
+    """Extend sv to a 4×4 unitary (sv = column 0) via Gram-Schmidt.
 
-for eps in epsilon_coarse:
-    result = evaluate_epsilon(eps, u_angles, v_angles)
-    if result["min_total"] is not None:
-        if min_total_gates is None or result["min_total"] < min_total_gates:
-            min_total_gates = result["min_total"]
-    if result["max_fid"] is not None:
-        if max_fid_overall is None or result["max_fid"] > max_fid_overall:
-            max_fid_overall = result["max_fid"]
-
-    if result["best"] is not None:
-        selected = (eps, result)
-        break
-    prev_eps = eps
-
-if selected is not None and prev_eps is not None:
-    print(f"\nRefining between {prev_eps:.1e} and {selected[0]:.1e}")
-    refine_eps = np.logspace(np.log10(prev_eps), np.log10(selected[0]), num=refine_steps)
-    for eps in refine_eps[1:-1]:
-        result = evaluate_epsilon(float(eps), u_angles, v_angles)
-        if result["min_total"] is not None:
-            if min_total_gates is None or result["min_total"] < min_total_gates:
-                min_total_gates = result["min_total"]
-        if result["max_fid"] is not None:
-            if max_fid_overall is None or result["max_fid"] > max_fid_overall:
-                max_fid_overall = result["max_fid"]
-
-        if result["best"] is not None:
-            selected = (float(eps), result)
+    Algorithm identical to test.py's unitary_from_state, so candidate 0
+    matches the test harness exactly.
+    """
+    sv = np.asarray(sv, dtype=complex).flatten()
+    sv = sv / np.linalg.norm(sv)
+    basis = [sv]
+    for i in range(4):
+        v = np.zeros(4, dtype=complex)
+        v[i] = 1.0
+        for b in basis:
+            v -= np.vdot(b, v) * b
+        n = np.linalg.norm(v)
+        if n > 1e-12:
+            basis.append(v / n)
+        if len(basis) == 4:
             break
-
-if selected is not None:
-    selected_eps, selected_result = selected
-    best = selected_result["best"]
-    best_score = selected_result["score"]
-    best_fid = selected_result["fid"]
-else:
-    selected_eps = None
+    return np.column_stack(basis)
 
 
-if best is None:
-    raise RuntimeError(
-        "No candidate circuits met the fidelity target. "
-        f"Target fidelity={target_fidelity:.3f}, "
-        f"best observed fidelity={max_fid_overall}. "
-        f"Smallest observed total_gates={min_total_gates}. "
-        f"Increase max_total_gates (currently {max_total_gates}), "
-        "decrease epsilon, or lower the target."
+def generate_candidates(sv, n, seed):
+    """Return n unitaries that each map |00⟩ → sv.
+
+    Candidate 0 : Gram-Schmidt completion (deterministic, matches test.py).
+    Candidates 1…n-1 : base @ diag(1, V) with V drawn Haar-uniformly from
+                        U(3), spanning every possible orthonormal completion.
+    """
+    base = _gram_schmidt_completion(sv)
+    candidates = [base]
+    rng = np.random.default_rng(seed)
+    for _ in range(n - 1):
+        # Haar-random U(3): QR of a Ginibre matrix, phase-corrected
+        A = rng.standard_normal((3, 3)) + 1j * rng.standard_normal((3, 3))
+        Q, R = np.linalg.qr(A)
+        Q = Q @ np.diag(R.diagonal() / np.abs(R.diagonal()))
+        D = np.eye(4, dtype=complex)
+        D[1:, 1:] = Q
+        candidates.append(base @ D)
+    return candidates
+
+
+# ── fidelity metric ────────────────────────────────────────────────────────
+
+def state_prep_fidelity(unitary_matrix, target_sv):
+    """F = |⟨ψ| U |00⟩|²   ∈ [0, 1],  phase-invariant.
+
+    Only the first column of U is used, so this is strictly weaker than
+    comparing full operator matrices and allows coarser per-rotation epsilons.
+    """
+    overlap = np.vdot(target_sv, unitary_matrix[:, 0])   # ⟨ψ|U|0⟩
+    return float(np.abs(overlap) ** 2)
+
+
+# ── gate extraction (KAK → u3 + cx → Rz/Ry/Rx list) ──────────────────────
+
+def normalize_angle(a):
+    """Reduce angle to (-π, π]."""
+    return float((a + np.pi) % (2 * np.pi) - np.pi)
+
+
+def extract_ops(target_matrix):
+    """Transpile a 2-qubit unitary and return a flat op list.
+
+    Each entry is one of:
+        ("cx",  ctrl, tgt)
+        ("rz",  qubit, angle)  /  ("ry", ...)  /  ("rx", ...)
+    """
+    qc = QuantumCircuit(2)
+    qc.append(UnitaryGate(target_matrix), [0, 1])
+    template = transpile(
+        qc, basis_gates=["u3", "cx"],
+        optimization_level=2, seed_transpiler=0,
+    )
+    ops = []
+    for inst in template.data:
+        name   = inst.operation.name
+        qubits = [template.find_bit(q).index for q in inst.qubits]
+
+        if name == "cx":
+            ops.append(("cx", qubits[0], qubits[1]))
+
+        elif name in ("u3", "u"):
+            theta, phi, lam = [float(p) for p in inst.operation.params]
+            q = qubits[0]
+            for axis, angle in [("rz", lam), ("ry", theta), ("rz", phi)]:
+                a = normalize_angle(angle)
+                if abs(a) > ANGLE_TOL:
+                    ops.append((axis, q, a))
+
+        elif name in ("rz", "ry", "rx"):
+            a = normalize_angle(float(inst.operation.params[0]))
+            if abs(a) > ANGLE_TOL:
+                ops.append((name, qubits[0], a))
+
+        elif name == "p":
+            a = normalize_angle(float(inst.operation.params[0]))
+            if abs(a) > ANGLE_TOL:
+                ops.append(("rz", qubits[0], a))
+
+        elif name in ("id", "barrier"):
+            pass
+
+        else:
+            raise ValueError(f"Unexpected gate: {name}")
+
+    return ops
+
+
+# ── Clifford+T synthesis helpers ───────────────────────────────────────────
+
+_cache: dict[tuple, tuple] = {}
+
+
+def _synthesize(axis, angle, eps):
+    """Synthesize one rotation into Clifford+T.  Returns (gate, t_count)."""
+    key = (axis, angle, eps)
+    if key in _cache:
+        return _cache[key]
+    sub = {"rz": Rz, "ry": Ry, "rx": Rx}[axis](angle, eps)
+    gate = sub.to_gate()
+    tc   = count_t_gates_manual(dumps3(sub))
+    _cache[key] = (gate, tc)
+    return gate, tc
+
+
+def build_circuit(ops, eps_list):
+    """Assemble the full 2-qubit Clifford+T circuit."""
+    qc = QuantumCircuit(2)
+    rot_idx = 0
+    for op in ops:
+        if op[0] == "cx":
+            qc.cx(op[1], op[2])
+        else:
+            gate, _ = _synthesize(op[0], op[2], eps_list[rot_idx])
+            qc.append(gate, [op[1]])
+            rot_idx += 1
+    return qc
+
+
+def total_t_count(ops, rotation_indices, eps_list):
+    """Sum T-counts over all synthesized rotations."""
+    return sum(
+        _synthesize(ops[idx][0], ops[idx][2], eps_list[j])[1]
+        for j, idx in enumerate(rotation_indices)
     )
 
-print(f"\nSelected epsilon: {selected_eps:.1e}")
-print("\nBest circuit (total gates, T-count, depth):", best_score)
-print(best)
-print("\nBest circuit fidelity:", best_fid)
 
-qasm3_str = dumps3(best)
-with open("qasm/unitary7.qasm", "w") as file:
-    file.write(qasm3_str)
+# ── per-candidate optimization (Phase 1 + Phase 2) ────────────────────────
 
-U4 = Operator(best).data
+def optimize_candidate(target_matrix, target_sv, cid):
+    """Phase 1 (eps sweep) + Phase 2 (greedy relax) for one candidate.
 
-print("\nFinal 4x4 unitary matrix U:\n")
-np.set_printoptions(precision=6, suppress=True)
-print(U4)
+    Returns (qc, t_count, fidelity, ops, rotation_indices, eps_list)
+    or None if the target fidelity is never reached.
+    """
+    ops              = extract_ops(target_matrix)
+    rotation_indices = [i for i, op in enumerate(ops) if op[0] in ("rx", "ry", "rz")]
+    n_rot            = len(rotation_indices)
+    n_cx             = sum(1 for op in ops if op[0] == "cx")
 
-e00 = np.array([1, 0, 0, 0], dtype=complex)
-out = U4 @ e00
+    # Phase 1: find the coarsest uniform eps that meets the fidelity threshold
+    hit_eps = None
+    for eps in EPS_COARSE:
+        eps_list = [eps] * n_rot
+        qc   = build_circuit(ops, eps_list)
+        fid  = state_prep_fidelity(Operator(qc).data, target_sv)
+        if fid >= TARGET_FIDELITY:
+            hit_eps = eps
+            break
 
-print("\nMax |U|00> - psi| =", np.max(np.abs(out - psi)))
+    if hit_eps is None:
+        print(f"  [{cid:2d}] SKIP – fidelity threshold not reached  "
+              f"({n_rot} rot, {n_cx} cx)")
+        return None
+
+    current_eps = [hit_eps] * n_rot
+    current_t   = total_t_count(ops, rotation_indices, current_eps)
+    current_fid = state_prep_fidelity(
+        Operator(build_circuit(ops, current_eps)).data,
+        target_sv,
+    )
+
+    # Phase 2: greedily relax individual rotations
+    for _ in range(20):                          # max outer passes
+        improved = False
+        for j in range(n_rot):
+            idx       = rotation_indices[j]
+            axis      = ops[idx][0]
+            angle     = ops[idx][2]
+            orig_eps  = current_eps[j]
+            _, orig_tc = _synthesize(axis, angle, orig_eps)
+
+            for factor in RELAXATION_FACTORS:
+                trial_eps = orig_eps * factor
+                if trial_eps > 0.5:
+                    continue
+                _, trial_tc = _synthesize(axis, angle, trial_eps)
+                if trial_tc >= orig_tc:
+                    continue                      # no T saving → skip
+
+                trial_eps_list = current_eps.copy()
+                trial_eps_list[j] = trial_eps
+                trial_fid = state_prep_fidelity(
+                    Operator(build_circuit(ops, trial_eps_list)).data,
+                    target_sv,
+                )
+
+                if trial_fid >= TARGET_FIDELITY:
+                    current_eps[j]  = trial_eps
+                    current_t      += trial_tc - orig_tc
+                    current_fid     = trial_fid
+                    improved        = True
+                    break             # move to next rotation
+
+        if not improved:
+            break
+
+    qc = build_circuit(ops, current_eps)
+    print(f"  [{cid:2d}] T={current_t:4d}  fidelity={current_fid:.10f}  "
+          f"({n_rot} rot, {n_cx} cx)")
+    return qc, current_t, current_fid, ops, rotation_indices, current_eps
+
+
+# ── main ───────────────────────────────────────────────────────────────────
+
+candidates = generate_candidates(statevector, N_CANDIDATES, CANDIDATE_SEED)
+
+print(f"Statevector:      {np.round(statevector, 6)}")
+print(f"Candidates:       {N_CANDIDATES}  |  fidelity threshold: {TARGET_FIDELITY}")
+print("=" * 60)
+
+best = None   # (t_count, fidelity, qc, cid, ops, rotation_indices, eps_list)
+
+for i, cand in enumerate(candidates):
+    result = optimize_candidate(cand, statevector, i)
+    if result is None:
+        continue
+    qc, tc, fid, ops, rot_idx, eps_list = result
+    if best is None or tc < best[0] or (tc == best[0] and fid > best[1]):
+        best = (tc, fid, qc, i, ops, rot_idx, eps_list)
+
+if best is None:
+    print("\nERROR: no candidate met the fidelity target.")
+else:
+    tc, fid, qc, cid, ops, rot_idx, eps_list = best
+
+    qasm3_str  = dumps3(qc)
+    verified_t = count_t_gates_manual(qasm3_str)
+
+    print(f"\n{'=' * 52}")
+    print(f"  FINAL RESULT  (candidate {cid})")
+    print(f"{'=' * 52}")
+    print(f"  T-count  (sum):         {tc}")
+    print(f"  T-count  (QASM):        {verified_t}")
+    print(f"  Fidelity |⟨ψ|U|00⟩|²:  {fid:.10f}")
+    print(f"  Per-rotation breakdown:")
+    for j, idx in enumerate(rot_idx):
+        axis  = ops[idx][0]
+        angle = ops[idx][2]
+        _, tc_j = _synthesize(axis, angle, eps_list[j])
+        print(f"    rot[{j}] {axis}({angle:+.6f}) q{ops[idx][1]}: "
+              f"eps={eps_list[j]:.1e}  T={tc_j}")
+
+    with open("qasm/unitary7.qasm", "w") as f:
+        f.write(qasm3_str)
+    print(f"\n  Saved to qasm/unitary7.qasm")
