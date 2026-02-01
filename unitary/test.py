@@ -13,7 +13,6 @@ X = np.array([[0, 1], [1, 0]])
 Y = np.array([[0, -1j], [1j, 0]])
 Z = np.array([[1, 0], [0, -1]])
 
-RX = lambda theta: np.array([[np.cos(theta/2), -1j*np.sin(theta/2)], [-1j*np.sin(theta/2), np.cos(theta/2)]])
 RY = lambda theta: np.array([[np.cos(theta/2), -np.sin(theta/2)], [np.sin(theta/2), np.cos(theta/2)]])
 RZ = lambda theta: np.array([[np.exp(-1j*theta/2), 0], [0, np.exp(1j*theta/2)]])
 
@@ -140,42 +139,26 @@ def parse_unitary_id_from_filename(path: str) -> int:
         raise ValueError(f"Could not infer unitary id from filename: {base}. Use --id.")
     return int(m.group(1))
 
-def count_t_gates(qc: QuantumCircuit) -> int:
-    decomposed_qc = qc.decompose()
-    ops = decomposed_qc.count_ops()
-    
-    t_count = ops.get("t", 0) + ops.get("tdg", 0)
-    return t_count
-
 def count_t_gates_manual(qasm_str: str) -> int:
     gate_t_counts = {}
     
-    # Extract all gate definitions: gate NAME ... { BODY }
     gate_defs = re.findall(r"gate\s+(\w+).*?\{(.*?)\}", qasm_str, re.DOTALL)
     
-    # We loop multiple times to resolve nesting (e.g., 42 calls 43)
-    # For most generated circuits, 3-5 passes is plenty.
     for _ in range(5): 
         for name, body in gate_defs:
-            # 1. Count direct 't' and 'tdg' in this definition
             current_count = len(re.findall(r"\b(t|tdg)\b", body))
             
-            # 2. Add counts from OTHER custom gates called inside THIS body
             for other_name, other_count in gate_t_counts.items():
                 if other_name != name:
-                    # Find how many times 'other_name' is called in 'body'
                     calls = len(re.findall(rf"\b{other_name}\b", body))
                     current_count += (calls * other_count)
             
             gate_t_counts[name] = current_count
 
-    # 3. Process the main execution block (everything outside 'gate' definitions)
     main_body = re.sub(r"gate.*?\{.*?\}", "", qasm_str, flags=re.DOTALL)
     
-    # Start with direct T-calls in the main body
     total_t = len(re.findall(r"\b(t|tdg)\b", main_body))
     
-    # Add counts from custom gate calls in the main body
     for name, count in gate_t_counts.items():
         calls = len(re.findall(rf"\b{name}\b", main_body))
         total_t += (calls * count)
@@ -215,7 +198,6 @@ def main():
         )
 
     if unitary_id == 7:
-        # State-prep: only U|00⟩ matters, compare states via fidelity
         psi_expected = U_expected[:, 0]
         psi_actual   = U_qasm[:, 0]
 
@@ -223,7 +205,6 @@ def main():
         print(np.round(psi_expected, 6))
         print()
 
-        # Align global phase: find e^{iφ} maximising Re(⟨expected|e^{iφ}·actual⟩)
         overlap = np.vdot(psi_expected, psi_actual)
         best_phase = np.conj(overlap) / abs(overlap) if abs(overlap) > 0 else 1.0 + 0.0j
         aligned_state = best_phase * psi_actual
@@ -248,7 +229,6 @@ def main():
         err = np.linalg.norm(aligned - U_expected)
         print(f"Min |Δ|: {err:.3e}")
 
-    # print t gate count
     t_count = count_t_gates_manual(qasm_src)
     print(f"T-gate count: {t_count}")
 
