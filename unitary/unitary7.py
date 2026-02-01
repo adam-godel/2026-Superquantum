@@ -5,12 +5,6 @@ from qiskit.quantum_info import Statevector, Operator, state_fidelity
 from utils import Rz, Ry
 from qiskit.qasm3 import dumps as dumps3
 
-
-# ============================================================
-# 1. Define target state |psi> in computational basis order
-#    |00>, |01>, |10>, |11>
-# ============================================================
-
 psi = np.array([
     0.1061479384 - 0.6796414670j,   # |00>
    -0.3622775887 - 0.4536131360j,   # |01>
@@ -19,88 +13,41 @@ psi = np.array([
 ], dtype=complex)
 
 psi = psi / np.linalg.norm(psi)    # normalize (safe)
-
-
-# ============================================================
-# 2. Schmidt decomposition (q1 | q0)
-# ============================================================
-
-# Reshape amplitudes into a 2x2 matrix
 M = psi.reshape(2, 2)
-
 U, s, Vh = np.linalg.svd(M)
 V = Vh.conj().T
-
 s0, s1 = s
 theta = 2 * np.arctan2(s1, s0)
-
 V_star = V.conj()
 
 
-def decompose_zyz(U_in: np.ndarray) -> tuple[float, float, float, float]:
-    det = np.linalg.det(U_in)
-    phase = np.angle(det) / 2
-    U_local = U_in * np.exp(-1j * phase)
+# ============================================================
+# 3. Build the unitary-only state-preparation circuit
+# ============================================================
 
-    a = U_local[0, 0]
-    b = U_local[0, 1]
-    c = U_local[1, 0]
+qc = QuantumCircuit(2)
 
-    theta_local = 2 * np.arctan2(np.abs(b), np.abs(a))
+# Prepare Schmidt form: s0|00> + s1|11>
+qc.ry(theta, 1)
+qc.cx(1, 0)
 
-    if np.isclose(np.abs(b), 0.0, atol=1e-12):
-        phi_local = 0.0
-        lam_local = -2 * np.angle(a)
-    elif np.isclose(np.abs(a), 0.0, atol=1e-12):
-        phi_local = 2 * np.angle(c)
-        lam_local = 0.0
-    else:
-        phi_minus_lambda = 2 * np.angle(c)
-        phi_plus_lambda = -2 * np.angle(a)
-        phi_local = 0.5 * (phi_minus_lambda + phi_plus_lambda)
-        lam_local = 0.5 * (phi_plus_lambda - phi_minus_lambda)
-
-    return phase, phi_local, theta_local, lam_local
-
-
-def append_zyz(qc: QuantumCircuit, qubit: int, phi: float, theta: float, lam: float, eps: float) -> None:
-    if not np.isclose(phi, 0.0, atol=1e-12):
-        qc.append(Rz(phi, eps).to_gate(), [qubit])
-    if not np.isclose(theta, 0.0, atol=1e-12):
-        qc.append(Ry(theta, eps).to_gate(), [qubit])
-    if not np.isclose(lam, 0.0, atol=1e-12):
-        qc.append(Rz(lam, eps).to_gate(), [qubit])
-
-
-def build_approx_circuit(
-    eps: float,
-    theta_in: float,
-    u_angles: tuple[float, float, float],
-    v_angles: tuple[float, float, float],
-) -> QuantumCircuit:
-    qc_local = QuantumCircuit(2)
-
-    qc_local.append(Ry(theta_in, eps).to_gate(), [1])
-    qc_local.cx(1, 0)
-
-    append_zyz(qc_local, 1, *u_angles, eps=eps)
-    append_zyz(qc_local, 0, *v_angles, eps=eps)
-
-    return qc_local
+# Local unitaries
+qc.append(UnitaryGate(U), [1])
+qc.append(UnitaryGate(V_star), [0])
 
 
 # ============================================================
-# 3. Build a ZYZ-based approximation (no UnitaryGate)
+# 4. Verify correctness (fidelity ≈ 1)
 # ============================================================
 
-_, u_phi, u_theta, u_lam = decompose_zyz(U)
-_, v_phi, v_theta, v_lam = decompose_zyz(V_star)
-u_angles = (u_phi, u_theta, u_lam)
-v_angles = (v_phi, v_theta, v_lam)
+sv = Statevector.from_instruction(qc)
+fid = state_fidelity(sv, psi)
+
+print("\nInitial circuit fidelity:", fid)
 
 
 # ============================================================
-# 4. Search epsilons for fidelity >= target
+# 5. Optimize for T-count (Clifford+T basis)
 # ============================================================
 
 basis_gates = ["h", "cx", "s", "sdg", "t", "tdg"]
@@ -249,21 +196,11 @@ qasm3_str = dumps3(best)
 with open("qasm/unitary7.qasm", "w") as file:
     file.write(qasm3_str)
 
-
-# ============================================================
-# 6. Extract the final 4x4 unitary matrix
-# ============================================================
-
 U4 = Operator(best).data
 
 print("\nFinal 4x4 unitary matrix U:\n")
 np.set_printoptions(precision=6, suppress=True)
 print(U4)
-
-
-# ============================================================
-# 7. Sanity check: U|00> = |psi|
-# ============================================================
 
 e00 = np.array([1, 0, 0, 0], dtype=complex)
 out = U4 @ e00
