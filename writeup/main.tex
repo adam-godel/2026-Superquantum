@@ -23,7 +23,9 @@
 \end{abstract}
 
 \section{Introduction}
-The development and optimization of fault-tolerant quantum circuits has been at the forefront of quantum research in recent years. This weekend at iQuHack, Superquantum tasked us with implementing efficient approximate quantum circuit implementations of unitary gate operators using the Clifford + $T$ gate set, where the latter is by far the most computationally difficult gate to execute and functions as a description of the ``quantumness'' of a circuit.
+The development and optimization of fault-tolerant quantum circuits has been at the forefront of quantum research in recent years. This weekend at iQuHack, Superquantum tasked us with implementing efficient approximate quantum circuit implementations of unitary gate operators using the Clifford + $T$ gate set, where the latter is by far the most computationally difficult gate to execute and functions as a description of the ``quantumness'' of a circuit.\footnotemark
+
+\footnotetext{\texttt{https://github.com/adam-godel/2026-Superquantum}}
 
 Our approach to implement these unitaries varied widely depending on the operator. Some have symmetries that can be exploited, while others are completely random and require brute-force optimization. Furthermore, there is a subjective tradeoff between minimizing the number of $T$ gates and minimizing the distance between the approximate and the exact unitaries. In this writeup, we present our approaches to implement all eleven operators tasked in our challenge, considering how our implementations can be varied in both of these optimization regimes.
 
@@ -36,7 +38,7 @@ A \emph{qubit} is the fundamental bit of information in quantum computing. A \em
 \end{equation}
 where $|\alpha|^2+|\beta|^2+|\gamma|^2+|\delta|^2=1$. A two-qubit quantum state can be acted upon with \emph{quantum gates}, which are represented as unitary matrices $A \in U(4)$ such that $|\psi\rangle \mapsto A|\psi\rangle$, which is a valid two-qubit quantum state. Similarly, one-qubit quantum gates are unitary matrices in $U(2)$.
 
-The following quantum gates are known as the \emph{Clifford gates}:
+The following quantum gates are known as the \emph{Clifford gates}\cite{PhysRevA.57.127}:
 \begin{align}
 	H = \frac{1}{\sqrt{2}}\begin{bmatrix}
  	1 & 1 \\
@@ -60,7 +62,7 @@ When combined with the $T$ gate, defined as
  0 & e^{i\frac{\pi}{4}}
  \end{bmatrix},
 \end{equation}
-they form a \emph{universal gate set}, meaning that any unitary operation can be approximated to arbitrary precision using circuits built with just these four gates.
+they form a \emph{universal gate set}\cite{PhysRevA.105.052602}, meaning that any unitary operation can be approximated to arbitrary precision using circuits built with just these four gates.
 
 Moreover, the \emph{Gottesman-Knill theorem}~\cite{PhysRevA.70.052328} shows that the Clifford gates can be simulated in polynomial time on a classical computer. This reduces the ``hardness'' of a quantum circuit to be described in the number of $T$ gates it contains. 
 
