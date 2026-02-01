@@ -29,7 +29,7 @@ The development and optimization of fault-tolerant quantum circuits has been at 
 
 Our approach to implement these unitaries varied widely depending on the operator. Some have symmetries that can be exploited, while others are completely random and require brute-force optimization. Furthermore, there is a subjective tradeoff between minimizing the number of $T$ gates and minimizing the distance between the approximate and the exact unitaries. In this writeup, we present our approaches to implement all eleven operators tasked in our challenge, considering how our implementations can be varied in both of these optimization regimes.
 
-We will begin by establishing some background on quantum computing and circuit theory, then continue by discussing each of our implementations in detail, and conclude with our reflection and possible future work on these problems.
+We will begin by establishing some background on quantum computing and circuit theory, then continue by discussing each of our implementations in detail, including our experimental results, and conclude with our reflection and possible future work on these problems.
 
 \section{Background}
 A \emph{qubit} is the fundamental bit of information in quantum computing. A \emph{two-qubit quantum state} is represented as
@@ -148,7 +148,25 @@ where the coefficient is a global phase that we can discard. Therefore, the Hami
 This form makes the Hamiltonian trivial to simulate.
 
 \subsection{Two-Qubit Transverse Field Ising Model}
-We construct this exponential operator, defined as $\exp(i\frac{\pi}{7}H_3)$, where $H_3=XX+ZI+IZ$. We construct the $XX$ term in the same way as described in Sec. 3.4. For the other two terms, we simply apply $R_z(-\theta)$
+We construct this exponential operator, defined as $\exp(i\frac{\pi}{7}H_3)$, where $H_3=XX+ZI+IZ$. We construct the $XX$ term in the same way as described in Sec. 3.4. For the other two terms, we simply apply $R_z(-2\theta)$ to each qubit.
+
+\subsection{State Preparation}
+Placeholder
+
+\subsection{A Structured Unitary}
+We aim to apply the unitary
+\begin{equation}
+	U_1 = \frac{1}{2}\begin{bmatrix}
+ 	1 & 1 & 1 & 1 \\
+ 	1 & i & -1 & -i \\
+ 	1 & -1 & 1 & -1 \\
+ 	1 & -i & -1 & i
+ \end{bmatrix}.
+\end{equation}
+Notice that this unitary is the two-qubit quantum Fourier transform. Since it only requires $z$ rotations that are multiples of $\frac{\pi}{4}$, we do not need any rotation gates. Our implementation uses only three $T$ gates.
+
+\subsection{Another Structured Unitary}
+
 
 \bibliographystyle{unsrt}
 \bibliography{main}
