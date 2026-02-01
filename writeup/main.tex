@@ -1,6 +1,7 @@
 \documentclass[twocolumn, letterpaper]{article}
 \usepackage{authblk}
 \usepackage{amsmath}
+\usepackage{cite}
 \usepackage{tikz}
 \usetikzlibrary{quantikz2}
 \newtheorem{theorem}{Theorem}
@@ -61,7 +62,7 @@ When combined with the $T$ gate, defined as
 \end{equation}
 they form a \emph{universal gate set}, meaning that any unitary operation can be approximated to arbitrary precision using circuits built with just these four gates.
 
-Moreover, the \emph{Gottesman-Knill theorem} shows that the Clifford gates can be simulated in polynomial time on a classical computer. This reduces the ``hardness'' of a quantum circuit to be described in the number of $T$ gates it contains. 
+Moreover, the \emph{Gottesman-Knill theorem}~\cite{PhysRevA.70.052328} shows that the Clifford gates can be simulated in polynomial time on a classical computer. This reduces the ``hardness'' of a quantum circuit to be described in the number of $T$ gates it contains. 
 
 \section{Our Implementations}
 We now go through each of the eleven unitaries we implemented during the weekend, and the optimizations we made to leverage both low $T$ gate counts and higher accuracy. We describe the implementations in order, although the difficulty in constructing each implementation varied widely.
@@ -99,5 +100,10 @@ Suppose we had a $R_y$ gate in our toolbox. If this were the case, we could repr
 \end{equation}
 We know that this is true by considering the state of $q_1$ based on the state of $q_0$. We know that $CR_y(\theta)$ should apply $R_y(\theta)$ if $q_0=|1\rangle$ and do nothing if $q_0=|0\rangle$. In Eq. 7, we can see that if $q_0=|0\rangle$, nothing is done to $q_1$, while if $q_0=|1\rangle$, we can see that a $R_y(\theta)$ gate is applied to $q_1$.
 
-The problem now reduces to an implementation of $R_y(\theta)$. 
+The problem now reduces to an implementation of $R_y(\theta)$. We can observe that since $SXS^\dagger=Y$ and $HZH=X$, we have $R_y(\theta)=SHR_z(\theta)HS^\dagger$, i.e. we can represent $R_y(\theta)$ in terms of just $R_z(\theta)$ and Clifford gates. It is easy to see that the same is true for $R_x(\theta)$.
+
+We implement a Clifford + $T$ gate approximation of $R_z(\theta)$ using the \texttt{gridsynth} package~\cite{10.5555/3179330.3179331}, which takes in an angle $\theta$ and a precision $\epsilon$ and computes a decomposition for $R_z(\theta)$ with a $T$-gate count within $O(\log(\log(1/\epsilon)))$ of optimal.
+
+\bibliographystyle{unsrt}
+\bibliography{main}
 \end{document}
