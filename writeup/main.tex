@@ -69,7 +69,7 @@ they form a \emph{universal gate set}~\cite{PhysRevA.105.052602}, meaning that a
 Moreover, the \emph{Gottesman-Knill theorem}~\cite{PhysRevA.70.052328} shows that the Clifford gates can be simulated in polynomial time on a classical computer. This reduces the ``hardness'' of a quantum circuit to be described in the number of $T$ gates it contains. 
 
 \section{Our Implementations}
-We now go through each of the twelve unitaries we implemented during the weekend, and the optimizations we made to leverage both low $T$ gate counts and higher accuracy. We describe the implementations in order, although the difficulty in constructing each implementation varied widely.
+We now go through each of the twelve unitaries we implemented during the weekend, and the optimizations we made to leverage both low $T$ gate counts and higher accuracy. We describe the implementations in order, although the difficulty in constructing each implementation varied widely. Note that none of our circuit decompositions use any ancilla qubits.
 
 \subsection{Controlled-$Y$ Gate}
 The \emph{controlled-$Y$ gate} is defined as
