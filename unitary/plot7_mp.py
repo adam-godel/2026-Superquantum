@@ -20,6 +20,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 
 from plot10 import apply_scientific_style
 from unitary7 import (
@@ -103,20 +104,24 @@ def plot_unitary7(out_path, n_candidates, seed, workers, mp_start):
     )
     plt.grid(True, which="both")
     plt.legend(loc="best", fontsize=11)
+    fid_min = float(np.min(sorted_fid))
     fid_max = float(np.max(sorted_fid))
-    y_min = 0.999999
-    span = max(fid_max - y_min, 0.0)
-    pad = max(span * 0.3, 5e-7)
-    y_max = min(1.0, fid_max + pad)
-    if y_max <= y_min:
-        y_max = min(1.0, y_min + 1e-6)
-    plt.ylim(y_min, y_max)
+    if fid_max == fid_min:
+        pad = max(1e-12, fid_min * 1e-9)
+    else:
+        pad = 0.10 * (fid_max - fid_min)
+    fid_min = max(0.0, fid_min - pad)
+    fid_max = min(1.0, fid_max + pad)
+    plt.ylim(fid_min, fid_max)
+    ax = plt.gca()
+    ax.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+    ax.ticklabel_format(axis="y", style="plain")
 
     if sorted_t:
         min_t_idx = 0
         max_t_idx = len(sorted_t) - 1
-        textstr = f"Min T: {sorted_t[min_t_idx]} (fid={sorted_fid[min_t_idx]:.6f})\n"
-        textstr += f"Max T: {sorted_t[max_t_idx]} (fid={sorted_fid[max_t_idx]:.6f})"
+        textstr = f"Min T: {sorted_t[min_t_idx]} (fid={sorted_fid[min_t_idx]:.9f})\n"
+        textstr += f"Max T: {sorted_t[max_t_idx]} (fid={sorted_fid[max_t_idx]:.9f})"
         plt.text(
             0.08,
             0.05,
@@ -126,6 +131,29 @@ def plot_unitary7(out_path, n_candidates, seed, workers, mp_start):
             verticalalignment="bottom",
             bbox=dict(boxstyle="round", facecolor="white", edgecolor="0.6", alpha=0.9),
         )
+
+        # Annotate three analytical points: min T, max T, best fidelity
+        max_fid_idx = int(np.argmax(sorted_fid))
+        label_indices = []
+        for idx in (min_t_idx, max_t_idx, max_fid_idx):
+            if idx not in label_indices:
+                label_indices.append(idx)
+            if len(label_indices) == 3:
+                break
+        offsets = [(-18, 12), (-18, -12), (-26, 16)]
+        for k, idx in enumerate(label_indices):
+            t_val = sorted_t[idx]
+            fid_val = sorted_fid[idx]
+            dx, dy = offsets[k % len(offsets)]
+            plt.annotate(
+                f"{fid_val:.9f}",
+                xy=(t_val, fid_val),
+                xytext=(dx, dy),
+                textcoords="offset points",
+                fontsize=9,
+                bbox=dict(boxstyle="round", facecolor="white", edgecolor="0.6", alpha=0.9),
+                arrowprops=dict(arrowstyle="->", color="0.4", lw=0.8),
+            )
 
     plt.tight_layout()
     plt.savefig(out_path, dpi=150, bbox_inches="tight")
