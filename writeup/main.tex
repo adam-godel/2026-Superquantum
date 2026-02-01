@@ -88,19 +88,16 @@ The \emph{controlled-$R_y$ gate} is defined as
  	0 & 0 & \sin(\theta/2) & \cos(\theta/2)
  \end{bmatrix}.
 \end{equation}
-We want to consider the case where $\theta=\pi/7$, which does not map cleanly onto a Clifford + $T$ gate set. Therefore, we have to consider approximations. This is when we developed our central strategy for creating these implementations: \emph{\textbf{modularity}} of gates. Suppose we had a $R_z$ gate in our toolbox, defined as
-\begin{equation}
-	R_z(\theta) = \begin{bmatrix}
- 	e^{-i\frac{\theta}{2}} & 0 \\
- 	0 & e^{i\frac{\theta}{2}}
- \end{bmatrix}.
-\end{equation}
-If this were the case, we could represent $CR_y(\theta)$ with the following circuit:
+We want to consider the case where $\theta=\pi/7$, which does not map cleanly onto a Clifford + $T$ gate set. Therefore, we have to consider approximations. This is when we developed our central strategy for creating these implementations: \emph{\textbf{modularity}} of gates. 
+
+Suppose we had a $R_y$ gate in our toolbox. If this were the case, we could represent $CR_y(\theta)$ with the following circuit:
 \begin{equation}
 	\begin{quantikz}
 		\lstick{$q_0$} &&\ctrl{1}&&\ctrl{1}& \\
-		\lstick{$q_1$} &\gate{R_z(\theta/2)}&\targ{}&\gate{R_z(-\theta/2)}&\targ{}&
+		\lstick{$q_1$} &\gate{R_y(\theta/2)}&\targ{}&\gate{R_y(-\theta/2)}&\targ{}&
 	\end{quantikz}
 \end{equation}
-We know that this is true by considering the state of $q_1$ based on the state of $q_0$. We know that $CR_y(\theta)$ 
+We know that this is true by considering the state of $q_1$ based on the state of $q_0$. We know that $CR_y(\theta)$ should apply $R_y(\theta)$ if $q_0=|1\rangle$ and do nothing if $q_0=|0\rangle$. In Eq. 7, we can see that if $q_0=|0\rangle$, nothing is done to $q_1$, while if $q_0=|1\rangle$, we can see that a $R_y(\theta)$ gate is applied to $q_1$.
+
+The problem now reduces to an implementation of $R_y(\theta)$. 
 \end{document}
