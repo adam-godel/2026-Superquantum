@@ -14,8 +14,8 @@ qc.append(Rz(-2*theta, epsilon).to_gate(), [1])
 qc.cx(0, 1)
 qc.h(0); qc.h(1)
 
-qc.append(Rz(-theta, epsilon).to_gate(), [0])
-qc.append(Rz(-theta, epsilon).to_gate(), [1])
+qc.append(Rz(-2*theta, epsilon).to_gate(), [0])
+qc.append(Rz(-2*theta, epsilon).to_gate(), [1])
 
 qasm3_str = dumps3(qc)
 with open("qasm/unitary6.qasm", 'w') as file:

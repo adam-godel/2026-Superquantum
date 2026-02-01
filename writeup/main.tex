@@ -25,7 +25,7 @@
 \section{Introduction}
 The development and optimization of fault-tolerant quantum circuits has been at the forefront of quantum research in recent years. This weekend at iQuHack, Superquantum tasked us with implementing efficient approximate quantum circuit implementations of unitary gate operators using the Clifford + $T$ gate set, where the latter is by far the most computationally difficult gate to execute and functions as a description of the ``quantumness'' of a circuit.\footnotemark
 
-\footnotetext{\texttt{https://github.com/adam-godel/2026-Superquantum}}
+\footnotetext{Our code is freely available on GitHub at the following link: \texttt{https://github.com/adam-godel/2026-Superquantum}.}
 
 Our approach to implement these unitaries varied widely depending on the operator. Some have symmetries that can be exploited, while others are completely random and require brute-force optimization. Furthermore, there is a subjective tradeoff between minimizing the number of $T$ gates and minimizing the distance between the approximate and the exact unitaries. In this writeup, we present our approaches to implement all eleven operators tasked in our challenge, considering how our implementations can be varied in both of these optimization regimes.
 
@@ -126,6 +126,30 @@ It is not hard to see that $\exp(i\theta Z)=R_z(-2\theta)$. Therefore, we can im
 Consider the unitary operator $\exp(i\frac{\pi}{7}H_1)$, where $H_1=XX+YY$. We implement each summand separately in a construction is similar to above. We implement $\exp(i \frac{\pi}{7} XX)$ by taking the previous circuit and conjugating with $H$, and we implement $\exp(i \frac{\pi}{7} YY)$ by conjugating with $HS$ and $S^\dagger H$ on both qubits. This allows us to implement the exponential of this Hamiltonian using only two $R_z$ gates.
 
 \subsection{A Curiously Simple Hamiltonian}
+Suppose we consider a similar Hamiltonian to the one above, but with a slightly different construction. We consider $\exp(i\frac{\pi}{4}H_2)$, where $H_2=XX+YY+ZZ$. Can we implement this operator more efficiently than the previous ones?
+
+It turns out that we can, using the SWAP gate, which is defined as
+\begin{equation}
+	\text{SWAP} = \frac{1}{2}(II+XX+YY+ZZ).
+\end{equation}
+Using the SWAP gate, we can rewrite our exponential as
+\begin{align}
+	\exp\left(i\frac{\pi}{4}H_2\right) &= \exp\left(i\frac{\pi}{4}(2\text{SWAP}-I)\right) \\
+	&= e^{-i\frac{\pi}{4}}\exp\left(i\frac{\pi}{2}\text{SWAP}\right) \\
+	&= e^{i\frac{\pi}{4}}\text{SWAP}
+\end{align}
+where the coefficient is a global phase that we can discard. Therefore, the Hamiltonian exponential is equivalent to the SWAP gate, which we can easily write using three CNOTs by the XOR swap algorithm:
+\begin{equation}
+	\begin{quantikz}
+		\lstick{$q_0$} &\ctrl{1}&\targ{}&\ctrl{1}& \\
+		\lstick{$q_1$} &\targ{}&\ctrl{-1}&\targ{}&
+	\end{quantikz}
+\end{equation}
+This form makes the Hamiltonian trivial to simulate.
+
+\subsection{Two-Qubit Transverse Field Ising Model}
+We construct this exponential operator, defined as $\exp(i\frac{\pi}{7}H_3)$, where $H_3=XX+ZI+IZ$. We construct the $XX$ term in the same way as described in Sec. 3.4. For the other two terms, we simply apply $R_z(-\theta)$
+
 \bibliographystyle{unsrt}
 \bibliography{main}
 \end{document}
