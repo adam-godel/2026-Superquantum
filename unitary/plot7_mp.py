@@ -103,17 +103,13 @@ def plot_unitary7(out_path, n_candidates, seed, workers, mp_start):
     )
     plt.grid(True, which="both")
     plt.legend(loc="best", fontsize=11)
-    fid_min = float(np.min(sorted_fid))
     fid_max = float(np.max(sorted_fid))
-    fid_mean = float(np.mean(sorted_fid))
-    fid_std = float(np.std(sorted_fid))
-    spread = max(fid_max - fid_min, fid_std)
-    pad = max(spread * 1.5, 1e-6)
-    y_min = max(0.0, fid_min - pad)
+    y_min = 0.999999
+    span = max(fid_max - y_min, 0.0)
+    pad = max(span * 0.3, 5e-7)
     y_max = min(1.0, fid_max + pad)
-    if y_max - y_min < 1e-5:
-        y_min = max(0.0, fid_mean - 5e-5)
-        y_max = min(1.0, fid_mean + 5e-5)
+    if y_max <= y_min:
+        y_max = min(1.0, y_min + 1e-6)
     plt.ylim(y_min, y_max)
 
     if sorted_t:
