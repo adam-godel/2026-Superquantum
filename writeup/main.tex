@@ -151,7 +151,37 @@ This form makes the Hamiltonian trivial to simulate.
 We construct this exponential operator, defined as $\exp(i\frac{\pi}{7}H_3)$, where $H_3=XX+ZI+IZ$. We construct the $XX$ term in the same way as described in Sec. 3.4. For the other two terms, we simply apply $R_z(-2\theta)$ to each qubit.
 
 \subsection{State Preparation}
-Placeholder
+We now discuss the implementation of an arbitrary state preparation
+\begin{equation}
+\begin{aligned}
+	|00\rangle \mapsto (0.1061479384-0.679641467i)&|00\rangle \\
+	+ (-0.3622775887-0.453613136i)&|01\rangle \\
+	+ (0.2614190429+0.0445330969i)&|10\rangle \\
+	+ (0.3276449279-0.1101628411i)&|11\rangle.
+\end{aligned}
+\end{equation}
+This task differs from the previous ones since it is totally random. There is no structure we can exploit to systematically minimize the number of $T$ gates we're using.
+
+Consider how this unitary operator might look. For a unitary operator $U$ where 
+\begin{equation}
+	U|00\rangle = \alpha|00\rangle + \beta|01\rangle + \gamma|10\rangle + \delta|11\rangle,
+\end{equation}
+its structure in the computational basis would be reminiscent of the following:
+\begin{equation}
+	U = \begin{bmatrix}
+0.1061479384-0.679641467i & * & * & * \\
+-0.3622775887-0.453613136i  & * & * & * \\
+0.2614190429+0.0445330969i & * & * & * \\
+0.3276449279-0.1101628411i & * & * & *
+\end{bmatrix}
+\end{equation}
+where the $*$ symbols depict ``free variables'' that we don't care about the specific values of. The key observation is that for this matrix to be unitary, these columns must form an orthonormal basis, and the specific values of these free variables will greatly affect the number of $T$ gates.
+
+Therefore, our protocol is the following: we first generate a complete unitary using the Gram-Schmidt process, encoding randomness on many different diagonal matrices that are applied to each sample unitary. We then test each candidate unitary over many different values of $\epsilon$. To balance the tradeoff, we start with a fidelity threshold compared to the expected state, and once that is hit, we then test over $\epsilon$ to minimize the number of $T$ gates.
+
+More precisely, we transpile the circuit into rotation gates using \texttt{qiskit}, and then decompose each one with a different most optimized $\epsilon$ value by comparing individually to the fidelity of the state with that operator applied as well as its individual $T$ gate count.
+
+This approach allows us to get a highly optimized circuit without incorporating any sort of structural symmetry; our approach works on fully random state preparation instances.
 
 \subsection{A Structured Unitary}
 We aim to apply the unitary
@@ -166,7 +196,13 @@ We aim to apply the unitary
 Notice that this unitary is the two-qubit quantum Fourier transform\cite{RossSelinger2014OptimalAncillaFree}. Since it only requires $z$ rotations that are multiples of $\frac{\pi}{4}$, we do not need any rotation gates. Our implementation uses only three $T$ gates.
 
 \subsection{Another Structured Unitary}
+Placeholder
 
+\subsection{Random Unitary}
+In the case of a random unitary operator, we can just use the exact same protocol as in Sec. 3.7 but without the generation of the unitary, since we are already restricted to what the unitary needs to be. Similarly to the state preparation problem, this approach gives us an efficient circuit without exploiting any structure relating to the unitary.
+
+\subsection{Four-Qubit Diagonal Unitary}
+Placeholder
 
 \bibliographystyle{unsrt}
 \bibliography{main}
