@@ -106,6 +106,26 @@ The problem now reduces to an implementation of $R_y(\theta)$. We can observe th
 
 We implement a Clifford + $T$ gate approximation of $R_z(\theta)$ using the \texttt{gridsynth} package~\cite{10.5555/3179330.3179331}, which takes in an angle $\theta$ and a precision $\epsilon$ and computes a decomposition for $R_z(\theta)$ with a $T$-gate count within $O(\log(\log(1/\epsilon)))$ of optimal.
 
+This allows us to modularly use the $R_x$, $R_y$, and $R_z$ gates, noting that they are the most expensive operation, so we should aim to minimize their usage. \textbf{[todo: results with and without rotation gates]}
+
+\subsection{Exponential of a Pauli String}
+We next tackle the implementation of $\exp(i\frac{\pi}{7} ZZ)$. We can observe that 
+\begin{equation}
+\exp(i\theta ZZ) = CX (I \otimes \exp(i\theta Z)) CX.
+\end{equation}
+Consider the $R_z$ gate, which is defined as
+\begin{equation}
+	R_z(\theta) = \begin{bmatrix}
+ 	e^{-i\frac{\theta}{2}} & 0 \\
+	0 & e^{i\frac{\theta}{2}}
+ \end{bmatrix}.
+\end{equation}
+It is not hard to see that $\exp(i\theta Z)=R_z(-2\theta)$. Therefore, we can implement this unitary similarly to the previous one but using only one $R_z$ gate.
+
+\subsection{Exponential of a Hamiltonian}
+Consider the unitary operator $\exp(i\frac{\pi}{7}H_1)$, where $H_1=XX+YY$. We implement each summand separately in a construction is similar to above. We implement $\exp(i \frac{\pi}{7} XX)$ by taking the previous circuit and conjugating with $H$, and we implement $\exp(i \frac{\pi}{7} YY)$ by conjugating with $HS$ and $S^\dagger H$ on both qubits. This allows us to implement the exponential of this Hamiltonian using only two $R_z$ gates.
+
+\subsection{A Curiously Simple Hamiltonian}
 \bibliographystyle{unsrt}
 \bibliography{main}
 \end{document}
