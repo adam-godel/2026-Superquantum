@@ -2,10 +2,11 @@ import json
 import numpy as np
 from functools import reduce
 from rmsynth.core import coeffs_to_vec, synthesize_from_coeffs
+from rmsynth import Optimizer
 from qiskit import QuantumCircuit
 from qiskit.qasm3 import dumps as dumps3
 
-with open('../challenge12.json') as f:
+with open('./challenge12.json') as f:
     data = json.load(f)
 
 n = data['n']  # 9
@@ -171,8 +172,10 @@ print(f"  {len(phase_coeffs)} terms: {n1} T-gates (coeff=1), {n7} T†-gates (co
 print("Step 4: Synthesizing CNOT-optimised phase polynomial...")
 vec = coeffs_to_vec(phase_coeffs, n)
 synth_circ = synthesize_from_coeffs(vec, n, use_schedule=True)
-print(f"  Phase polynomial T-count: {synth_circ.t_count()}")
-print(f"  Phase polynomial CNOT count: {sum(1 for op in synth_circ.ops if op.kind=='cnot')}")
+opt = Optimizer(decoder="rpa", effort=3, policy="distance", policy_lambda=5)
+circ_opt, _ = opt.optimize(synth_circ)
+print(f"  Phase polynomial T-count: {circ_opt.t_count()}")
+print(f"  Phase polynomial CNOT count: {sum(1 for op in circ_opt.ops if op.kind=='cnot')}")
 
 print("Step 7: Building Qiskit circuit (C + phase_poly + C†)...")
 qc = QuantumCircuit(n)
@@ -183,7 +186,7 @@ for g in gates:
         qc.tdg(g[1]); qc.tdg(g[1])   
     elif g[0] == 'CX':  qc.cx(g[1], g[2])
 
-for op in synth_circ.ops:
+for op in circ_opt.ops:
     if op.kind == 'cnot':
         qc.cx(op.ctrl, op.tgt)
     elif op.kind == 'phase':
@@ -203,7 +206,7 @@ for g in reversed(gates):
 
 n_sdg = sum(1 for g in gates if g[0] == 'Sdg')
 t_clifford = 4 * n_sdg 
-t_poly = synth_circ.t_count() 
+t_poly = circ_opt.t_count() 
 print(f"  T from Clifford: {t_clifford} ({n_sdg} Sdg gates × 4)")
 print(f"  T from phase poly: {t_poly}")
 print(f"  Total T-gate count: {t_clifford + t_poly}")

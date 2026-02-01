@@ -8,7 +8,7 @@
 \usetikzlibrary{quantikz2}
 \newtheorem{theorem}{Theorem}
 
-\title{iQuHack 2026: Title}
+\title{iQuHack 2026 (Superquantum Challenge): \\ Leveraging Modularity for Twelve Unitary Circuit Decompositions}
 \author[1]{Adam Godel}
 \author[1]{Yebin Song}
 \author[1]{Nico Jackson}
@@ -21,24 +21,24 @@
 \maketitle
 \setcounter{page}{1}
 \begin{abstract}
-	Placeholder
-\end{abstract}
+	We consider the Clifford + $T$ gate decomposition of twelve unitary gate operators, implementing modular gate implementations based on known near-optimal decompositions of the $R_z(\theta)$ gate with some precision $\epsilon$. We also examine the phase polynomial's ability to lead to reductions in the $T$ gate count based on coefficient parity or raw value depending on the gate restrictions.
+	\end{abstract}
 
 \section{Introduction}
 The development and optimization of fault-tolerant quantum circuits has been at the forefront of quantum research in recent years. This weekend at iQuHack, Superquantum tasked us with implementing efficient approximate quantum circuit implementations of unitary gate operators using the Clifford + $T$ gate set, where the latter is by far the most computationally difficult gate to execute and functions as a description of the ``quantumness'' of a circuit.\footnotemark
 
-\footnotetext{Our code is freely available on GitHub at the following link: \texttt{https://github.com/adam-godel/2026-Superquantum}.}
+\footnotetext{Our code is available on GitHub at the following link: \texttt{https://github.com/adam-godel/2026-Superquantum}.}
 
-Our approach to implement these unitaries varied widely depending on the operator. Some have symmetries that can be exploited, while others are completely random and require brute-force optimization. Furthermore, there is a subjective tradeoff between minimizing the number of $T$ gates and minimizing the distance between the approximate and the exact unitaries. In this writeup, we present our approaches to implement all eleven operators tasked in our challenge, considering how our implementations can be varied in both of these optimization regimes.
+Our approach to implement these unitaries varied widely depending on the operator. Some have symmetries that can be exploited, while others are completely random and require brute-force optimization. Furthermore, there is a subjective tradeoff between minimizing the number of $T$ gates and minimizing the distance between the approximate and the exact unitaries. In this writeup, we present our approaches to implement all twelve operators tasked in our challenge, considering how our implementations can be varied in both of these optimization regimes.
 
 We will begin by establishing some background on quantum computing and circuit theory, then continue by discussing each of our implementations in detail, including our experimental results, and conclude with our reflection and possible future work on these problems.
 
 \section{Background}
-A \emph{qubit} is the fundamental bit of information in quantum computing. A \emph{two-qubit quantum state} is represented as
+A \emph{two-qubit quantum state} is represented as
 \begin{equation}
 	|\psi\rangle = \alpha|00\rangle + \beta|01\rangle + \gamma |10\rangle + \delta|11\rangle,
 \end{equation}
-where $|\alpha|^2+|\beta|^2+|\gamma|^2+|\delta|^2=1$. A two-qubit quantum state can be acted upon with \emph{quantum gates}, which are represented as unitary matrices $A \in U(4)$ such that $|\psi\rangle \mapsto A|\psi\rangle$, which is a valid two-qubit quantum state. Similarly, one-qubit quantum gates are unitary matrices in $U(2)$.
+where $|\alpha|^2+|\beta|^2+|\gamma|^2+|\delta|^2=1$. A quantum state can be acted upon with \emph{quantum gates}, which are represented as unitary matrices $A \in U(2^n)$ for $n$ qubits such that $|\psi\rangle \mapsto A|\psi\rangle$, which is a valid $n$-qubit quantum state.
 
 The following quantum gates are known as the \emph{Clifford gates}\cite{PhysRevA.57.127}:
 \begin{align}
@@ -69,7 +69,7 @@ they form a \emph{universal gate set}\cite{PhysRevA.105.052602}, meaning that an
 Moreover, the \emph{Gottesman-Knill theorem}~\cite{PhysRevA.70.052328} shows that the Clifford gates can be simulated in polynomial time on a classical computer. This reduces the ``hardness'' of a quantum circuit to be described in the number of $T$ gates it contains. 
 
 \section{Our Implementations}
-We now go through each of the eleven unitaries we implemented during the weekend, and the optimizations we made to leverage both low $T$ gate counts and higher accuracy. We describe the implementations in order, although the difficulty in constructing each implementation varied widely.
+We now go through each of the twelve unitaries we implemented during the weekend, and the optimizations we made to leverage both low $T$ gate counts and higher accuracy. We describe the implementations in order, although the difficulty in constructing each implementation varied widely.
 
 \subsection{Controlled-$Y$ Gate}
 The \emph{controlled-$Y$ gate} is defined as
@@ -215,7 +215,7 @@ We can observe that this unitary, without a SWAP gate applied to it, is reminisc
 In the case of a random unitary operator, we can just use the exact same protocol as in Sec. 3.7 but without the generation of the unitary, since we are already restricted to what the unitary needs to be. Similarly to the state preparation problem, this approach gives us an efficient circuit without exploiting any structure relating to the unitary.
 
 \subsection{Four-Qubit Diagonal Unitary}
-We want to implement the four-qubit unitary $U$ such that $U|x\rangle = e^{i\frac{\pi}{8}\varphi(x)}|x\rangle$, where $\varphi(x)$ is some four-bit boolean function mod 8. 
+We want to implement the four-qubit unitary $U$ such that $U|x\rangle = e^{i\frac{\pi}{8}\varphi(x)}|x\rangle$, where $\varphi(x)$ is some four-bit boolean function mod 8 known as the \emph{phase polynomial}. 
 
 The key observation is that the phase polynomial fully encodes the unitary, and the number of odd coefficients will correspond with the number of $T$ gates. We first came up with some implementation for $\varphi(x)$, regardless of its optimality, and implemented it as a circuit. 
 
@@ -242,55 +242,61 @@ Given the intrinsic tradeoff between $T$-gate count and approximation accuracy, 
 \begin{figure}[htbp]
 	\centering
 	\includegraphics[width=0.48\textwidth]{unitary_2_distance_vs_tcount.png}
-	\caption{T-count vs. distance tradeoff for Unitary 2.}
+	\caption{$T$-count vs. distance tradeoff for Unitary 2.}
 	\label{fig:unitary2}
 \end{figure}
-Figure 1 depicts varying epsilon values for Unitary 2. The plot for Unitary 2 exhibits a non-monotonic ``spike'' in error, where the distance reaches a maximum of $4.56 \times 10^{-1}$ at mid-range T-counts due to local optimization failures. As the gate budget increases to 200, the approximation stabilizes at a persistent plateau of $4.46 \times 10^{-1}$, indicating that further T-gates do not significantly improve fidelity for this specific rotation.
+Figure 1 depicts varying $\epsilon$ values for Unitary 2. The plot for Unitary 2 exhibits a non-monotonic ``spike'' in error, where the distance reaches a maximum of $4.56 \times 10^{-1}$ at mid-range $T$-counts due to local optimization failures. As the gate budget increases to 200, the approximation stabilizes at a persistent plateau of $4.46 \times 10^{-1}$, indicating that further $T$-gates do not significantly improve fidelity for this specific rotation.
 
 \subsection{Unitary 3}
 \begin{figure}[htbp]
 	\centering
 	\includegraphics[width=0.48\textwidth]{unitary_3_distance_vs_tcount.png}
-	\caption{T-count vs. distance tradeoff for Unitary 3.}
+	\caption{$T$-count vs. distance tradeoff for Unitary 3.}
 	\label{fig:unitary3}
 \end{figure}
-Figure 2 depicts varying epsilon values for Unitary 3. Unitary 3 demonstrates a successful exponential decrease in error, with the distance dropping from $7.62 \times 10^{-2}$ down to a high-precision value of $1.38 \times 10^{-10}$. The profile features a distinct ``breakthrough'' near a T-count of 98, where the algorithm identifies an optimal Clifford+T sequence that dramatically reduces the residual error.
+Figure 2 depicts varying $\epsilon$ values for Unitary 3. Unitary 3 demonstrates a successful exponential decrease in error, with the distance dropping from $7.62 \times 10^{-2}$ down to a high-precision value of $1.38 \times 10^{-10}$. The profile features a distinct ``breakthrough'' near a $T$-count of 98, where the algorithm identifies an optimal Clifford + $T$ sequence that dramatically reduces the residual error.
 
 \subsection{Unitary 4}
 \begin{figure}[htbp]
 	\centering
 	\includegraphics[width=0.48\textwidth]{unitary_4_distance_vs_tcount.png}
-	\caption{T-count vs. distance tradeoff for Unitary 4.}
+	\caption{$T$-count vs. distance tradeoff for Unitary 4.}
 	\label{fig:unitary4}
 \end{figure}
-Figure 3 depicts varying epsilon values for Unitary 4. This operator follows a steady downward trend punctuated by a significant error plateau between T-counts of 100 and 180. Upon reaching a budget of 196 gates, the distance collapses from roughly $10^{-5}$ to $1.96 \times 10^{-10}$, proving that higher T-gate thresholds are sometimes necessary to unlock high-precision approximations.
+Figure 3 depicts varying $\epsilon$ values for Unitary 4. This operator follows a steady downward trend punctuated by a significant error plateau between $T$-counts of 100 and 180. Upon reaching a budget of 196 gates, the distance collapses from roughly $10^{-5}$ to $1.96 \times 10^{-10}$, proving that higher $T$-gate thresholds are sometimes necessary to unlock high-precision approximations.
 
 \subsection{Unitary 6}
 \begin{figure}[htbp]
 	\centering
 	\includegraphics[width=0.48\textwidth]{unitary_6_distance_vs_tcount.png}
-	\caption{T-count vs. distance tradeoff for Unitary 6.}
+	\caption{$T$-count vs. distance tradeoff for Unitary 6.}
 	\label{fig:unitary6}
 \end{figure}
-Figure 4 depicts varying epsilon values for Unitary 6. Unitary 6 shows a rapid initial error reduction that quickly hits a hard ceiling, with the distance settling at $6.97 \times 10^{-1}$ despite increasing the T-count to nearly 300. This behavior suggests a structural mismatch where the specific target unitary remains mathematically distant from the gate sequences reachable within the current search depth.
+Figure 4 depicts varying $\epsilon$ values for Unitary 6. Unitary 6 shows a rapid initial error reduction that quickly hits a hard ceiling, with the distance settling at $6.97 \times 10^{-1}$ despite increasing the $T$-count to nearly 300. This behavior suggests a structural mismatch where the specific target unitary remains mathematically distant from the gate sequences reachable within the current search depth.
 
 \subsection{Unitary 7}
 \begin{figure}[htbp]
 	\centering
 	\includegraphics[width=0.48\textwidth]{unitary7_plot.png}
-	\caption{T-count vs. distance tradeoff for Unitary 7.}
+	\caption{$T$-count vs. distance tradeoff for Unitary 7.}
 	\label{fig:unitary7}
 \end{figure}
-Figure 5 depicts varying epsilon values for Unitary 7. For Unitary 7, the analysis shifted from distance to Fidelity, targeting an extremely narrow high-precision band between 0.9999990 and 1.0. The plot reveals a stochastic, oscillatory pattern between T-counts of 490 and 592, characteristic of the randomized search protocol used to satisfy the strict $\geq$ 0.999999 fidelity threshold. This high resource cost and non-linear behavior are typical for "totally random" state preparations that lack exploitable structural symmetries.
+Figure 5 depicts varying $\epsilon$ values for Unitary 7. For Unitary 7, the analysis shifted from distance to Fidelity, targeting an extremely narrow high-precision band between 0.9999990 and 1.0. The plot reveals a stochastic, oscillatory pattern between $T$-counts of 490 and 592, characteristic of the randomized search protocol used to satisfy the strict $\geq$ 0.999999 fidelity threshold. This high resource cost and non-linear behavior are typical for ``totally random'' state preparations that lack exploitable structural symmetries.
 \subsection{Unitary 10}
 \begin{figure}[htbp]
 	\centering
 	\includegraphics[width=0.48\textwidth]{unitary10_distance_vs_tcount.png}
-	\caption{T-count vs. distance tradeoff for Unitary 10.}
+	\caption{$T$-count vs. distance tradeoff for Unitary 10.}
 	\label{fig:unitary10}
 \end{figure}
-Figure 6 depicts varying epsilon values for Unitary 10. This unitary requires a much larger resource budget, scaling from 250 to over 700 gates to achieve a precision of $1.0 \times 10^{-3}$. The log-log linear trend, despite a minor local instability at 350 gates, confirms that this ``random'' operator demands high gate density to achieve even moderate fidelity compared to more structured gates.
+Figure 6 depicts varying $epsilon$ values for Unitary 10. This unitary requires a much larger resource budget, scaling from 250 to over 700 gates to achieve a precision of $1.0 \times 10^{-3}$. The log-log linear trend, despite a minor local instability at 350 gates, confirms that this ``random'' operator demands high gate density to achieve even moderate fidelity compared to more structured gates.
 
+\section{Reflection \& Conclusions}
+In this project, we showed that while some unitaries can be easily decomposed into all Clifford gates, the ones that can't have a tradeoff between $T$ gate counts and accuracy. There is no objectively best configuration---ultimately, it depends on your use case and the ability of your hardware to simulate $T$ gates.
+
+For the later unitaries, we also identified the power of the phase polynomial to map many different classes of unitaries into Clifford and $R_z$ gates, providing the modularity that really made our implementations possible and efficient.
+
+We really enjoyed this project as a whole, and we are interested to explore the power of Clifford + $T$ decomposition as well as the \texttt{rmsynth} package and this problem's connection to the Reed-Muller code further. We definitely think there is still room for improvement in our implementations, particularly Unitary 12, and are excited to continue exploring better and even more modular approaches past the hackathon deadline!
 \bibliographystyle{unsrt}
 \bibliography{main}
 \end{document}
