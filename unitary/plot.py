@@ -394,7 +394,7 @@ def run_plot(unitary_ids, theta, show_individual=True, show_combined=False):
                     max_t_idx = len(sorted_t) - 1
                     textstr = f'Min T: {sorted_t[min_t_idx]} (dist={sorted_d[min_t_idx]:.2e})\n'
                     textstr += f'Max T: {sorted_t[max_t_idx]} (dist={sorted_d[max_t_idx]:.2e})'
-                    plt.text(0.08, 0.05, textstr, transform=plt.gca().transAxes,
+                    plt.text(0.5, 0.05, textstr, transform=plt.gca().transAxes,
                             fontsize=9, verticalalignment='bottom',
                             bbox=dict(boxstyle='round', facecolor='white', edgecolor='0.6', alpha=0.9))
                 
@@ -411,7 +411,7 @@ def run_plot(unitary_ids, theta, show_individual=True, show_combined=False):
 if __name__ == "__main__":
     # List all constructions you want to investigate
     # Unitaries 5, 8, 9 don't use theta parameter (fixed constructions)
-    constructions_to_analyze = [3]
+    constructions_to_analyze = [6]
     
     theta_value = math.pi / 7
     

@@ -4,7 +4,7 @@ from utils import Rz
 import math
 
 theta = math.pi / 7
-epsilon = 1.0e-01
+epsilon = 3.16e-10
 
 qc = QuantumCircuit(2)
 
