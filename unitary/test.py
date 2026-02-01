@@ -89,7 +89,7 @@ def distance_global_phase(actual: np.ndarray, expected: np.ndarray) -> np.ndarra
     best_phase = 1.0 + 0.0j
     min_dist = float('inf')
 
-    for phase in np.arange(-2 * np.pi, 2 * np.pi, .001):
+    for phase in np.arange(-2 * np.pi, 2 * np.pi, .0001):
         phase_factor = np.exp(1j * phase)
         dist = np.linalg.norm((phase_factor * actual) - expected)
         
