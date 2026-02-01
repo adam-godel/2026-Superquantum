@@ -96,7 +96,7 @@ TARGET_DISTANCES = [1e-1, 7e-2, 5e-2, 3e-2, 2e-2, 1e-2, 7e-3, 5e-3, 3e-3, 2e-3, 
 EPS_COARSE_SWEEP = np.logspace(-1, -9, 100)
 
 # More relaxation factors for fine-tuned optimization
-RELAXATION_FACTORS = [20, 10, 5, 3, 2, 1.5, 1.3, 1.2, 1.1, 1.05, 1.02, 1.01]
+RELAXATION_FACTORS = [100, 50, 30, 20, 15, 10, 7, 5, 3, 2, 1.5, 1.3, 1.2, 1.1, 1.05, 1.02]
 
 if not os.path.exists("qasm"):
     os.makedirs("qasm")

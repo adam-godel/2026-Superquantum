@@ -35,21 +35,14 @@ from test import count_t_gates_manual
 statevector = quantum_info.random_statevector(4, seed=42).data
 
 # ── tuning knobs ───────────────────────────────────────────────────────────
-N_CANDIDATES       = 20
+N_CANDIDATES       = 50
 CANDIDATE_SEED     = 42
-TARGET_FIDELITY    = 0.9975     # minimum acceptable |⟨ψ|U|00⟩|²
+TARGET_FIDELITY    = 0.9999
 ANGLE_TOL          = 1e-9
 
-EPS_COARSE = [
-    1e-1, 5e-2, 2e-2, 1e-2,
-    5e-3, 2e-3, 1e-3,
-    5e-4, 2e-4, 1e-4,
-    5e-5, 2e-5, 1e-5,
-]
-RELAXATION_FACTORS = [100, 50, 20, 10, 5, 2]
+EPS_COARSE = [10**(-i/2) for i in range(2, 18)]
 
-
-# ── candidate generation ───────────────────────────────────────────────────
+RELAXATION_FACTORS = [100, 50, 30, 20, 15, 10, 7, 5, 3, 2, 1.5, 1.3, 1.2, 1.1, 1.05, 1.02]
 
 def _gram_schmidt_completion(sv):
     """Extend sv to a 4×4 unitary (sv = column 0) via Gram-Schmidt.
@@ -236,7 +229,8 @@ def optimize_candidate(target_matrix, target_sv, cid):
     )
 
     # Phase 2: greedily relax individual rotations
-    for _ in range(20):                          # max outer passes
+    max_iterations = 50  # Increased from 20 for more thorough optimization
+    for iteration in range(max_iterations):
         improved = False
         for j in range(n_rot):
             idx       = rotation_indices[j]
