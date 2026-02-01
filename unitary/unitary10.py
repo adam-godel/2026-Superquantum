@@ -81,7 +81,7 @@ for TARGET_DIST in TARGET_DISTANCES:
     best_uniform_eps = None
     for eps in EPS_COARSE_SWEEP:
         eps_list = [eps] * n_rotations
-        qc = build_circuit(eps_list, eps_list, _cache)
+        qc = build_circuit(ops, eps_list, _cache)
         dist = operator_distance(Operator(qc).data, target)
         if dist < TARGET_DIST:
             best_uniform_eps = eps
@@ -94,8 +94,8 @@ for TARGET_DIST in TARGET_DISTANCES:
 
     # Phase 2: Per-rotation relaxation
     current_eps = [best_uniform_eps] * n_rotations
-    current_t = total_t_count(current_eps, rotation_indices, eps_list)
-    current_dist = operator_distance(Operator(build_circuit(current_eps, eps_list, _cache)).data, target)
+    current_t = total_t_count(ops, rotation_indices, current_eps, _cache)
+    current_dist = operator_distance(Operator(build_circuit(ops, current_eps, _cache)).data, target)
 
     iteration = 0
     while True:
@@ -115,7 +115,7 @@ for TARGET_DIST in TARGET_DISTANCES:
 
                 trial_eps_list = current_eps.copy()
                 trial_eps_list[j] = trial_eps
-                trial_dist = operator_distance(Operator(build_circuit(trial_eps_list, eps_list, _cache)).data, target)
+                trial_dist = operator_distance(Operator(build_circuit(ops, trial_eps_list, _cache)).data, target)
 
                 if trial_dist < TARGET_DIST:
                     current_t = current_t - orig_tc_j + trial_tc_j
@@ -126,8 +126,8 @@ for TARGET_DIST in TARGET_DISTANCES:
         if not any_improved: break
 
     # Finalize result for this target
-    final_qc = build_circuit(current_eps, eps_list, _cache)
-    final_t = total_t_count(current_eps, rotation_indices, eps_list)
+    final_qc = build_circuit(ops, current_eps, _cache)
+    final_t = total_t_count(ops, rotation_indices, current_eps, _cache)
     final_dist = operator_distance(Operator(final_qc).data, target)
 
     print(f"DONE -> Target: {TARGET_DIST} | Final T: {final_t} | Final Dist: {final_dist:.6e}")

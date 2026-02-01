@@ -121,8 +121,8 @@ def build_circuit(ops, eps_list, _cache):
             rot_idx += 1
     return qc
 
-def total_t_count(ops, rotation_indices, eps_list):
+def total_t_count(ops, rotation_indices, eps_list, _cache):
     return sum(
-        _synthesize(ops[idx][0], ops[idx][2], eps_list[j])[1]
+        _synthesize(ops[idx][0], ops[idx][2], eps_list[j], _cache)[1]
         for j, idx in enumerate(rotation_indices)
     )

@@ -184,7 +184,7 @@ def optimize_candidate(target_matrix, target_sv, cid):
         return None
 
     current_eps = [hit_eps] * n_rot
-    current_t   = total_t_count(ops, rotation_indices, current_eps)
+    current_t   = total_t_count(ops, rotation_indices, current_eps, _cache)
     current_fid = state_prep_fidelity(
         Operator(build_circuit(ops, current_eps, _cache)).data,
         target_sv,
